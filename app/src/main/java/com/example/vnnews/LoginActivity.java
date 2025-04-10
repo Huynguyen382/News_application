@@ -56,7 +56,7 @@ public class LoginActivity extends AppCompatActivity {
             User user = database.userDao().login(username, password);
             runOnUiThread(() -> {
                 if (user != null) {
-                    // Login successful
+                    // Đăng nhập thành công
                     Toast.makeText(LoginActivity.this, "Đăng nhập thành công", Toast.LENGTH_SHORT).show();
                     Intent intent = new Intent(LoginActivity.this, ExploreActivity.class);
                     startActivity(intent);

@@ -3,15 +3,15 @@
     <item
         android:id="@+id/navigation_home"
         android:icon="@drawable/ic_home"
-        android:title="Home" />
+        android:title="Trang chủ" />
     
     <item
         android:id="@+id/navigation_explore"
         android:icon="@drawable/ic_explore"
-        android:title="Explore" />
+        android:title="Khám phá" />
     
     <item
         android:id="@+id/navigation_profile"
         android:icon="@drawable/ic_profile"
-        android:title="Profile" />
+        android:title="Cá nhân" />
 </menu> 

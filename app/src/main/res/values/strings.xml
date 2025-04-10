@@ -12,9 +12,9 @@
     <string name="login">Đăng nhập</string>
     <string name="username">Tên đăng nhập</string>
     <string name="password">Mật khẩu</string>
-    <string name="forgot_password">Forgot password?</string>
-    <string name="dont_have_account">Don\'t have an account? </string>
-    <string name="register_now">Register now</string>
+    <string name="forgot_password">Quên mật khẩu?</string>
+    <string name="dont_have_account">Chưa có tài khoản?</string>
+    <string name="register_now">Đăng ký ngay</string>
     
     <!-- Sign Up -->
     <string name="sign_up">Đăng ký</string>
@@ -23,4 +23,17 @@
     <string name="login_now">Đăng nhập ngay</string>
     <string name="email">Email</string>
     <string name="full_name">Họ và tên</string>
+
+    <!-- Home -->
+    <string name="welcome_user">Xin chào %1$s</string>
+    <string name="search_hint">Tìm kiếm tin tức...</string>
+    <string name="featured_news">Tin tức nổi bật</string>
+    <string name="latest_news">Tin mới nhất</string>
+    <string name="tab_all">Tất cả</string>
+    <string name="tab_politics">Chính trị</string>
+    <string name="tab_business">Kinh doanh</string>
+    <string name="tab_sports">Thể thao</string>
+    <string name="bullet_point">•</string>
+
+    <string name="news_image_description">News article image</string>
 </resources>
