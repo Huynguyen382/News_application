@@ -1,29 +1,41 @@
-package com.example.myapplication.model;
+package com.example.vnnews.model;
 
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
+import androidx.room.ColumnInfo;
 
 @Entity(tableName = "articles")
 public class Article {
     @PrimaryKey(autoGenerate = true)
     private int id;
-    private String title;
-    private String content;
-    private String author;
-    private String publishDate;
-    private String imageUrl;
-    private String category;
 
-    public Article(String title, String content, String author, String publishDate, String imageUrl, String category) {
+    @ColumnInfo(name = "title")
+    private String title;
+
+    @ColumnInfo(name = "content")
+    private String content;
+
+    @ColumnInfo(name = "author")
+    private String author;
+
+    @ColumnInfo(name = "publishedAt")
+    private String publishDate;
+
+    @ColumnInfo(name = "imageUrl")
+    private String imageUrl;
+
+    @ColumnInfo(name = "categoryId")
+    private int categoryId;
+
+    public Article(String title, String content, String author, String publishDate, String imageUrl, int categoryId) {
         this.title = title;
         this.content = content;
         this.author = author;
         this.publishDate = publishDate;
         this.imageUrl = imageUrl;
-        this.category = category;
+        this.categoryId = categoryId;
     }
 
-    // Getters and Setters
     public int getId() {
         return id;
     }
@@ -72,11 +84,11 @@ public class Article {
         this.imageUrl = imageUrl;
     }
 
-    public String getCategory() {
-        return category;
+    public int getCategoryId() {
+        return categoryId;
     }
 
-    public void setCategory(String category) {
-        this.category = category;
+    public void setCategoryId(int categoryId) {
+        this.categoryId = categoryId;
     }
 } 

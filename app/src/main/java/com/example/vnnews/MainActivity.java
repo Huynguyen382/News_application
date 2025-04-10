@@ -1,4 +1,4 @@
-package com.example.myapplication;
+package com.example.vnnews;
 
 import android.os.Bundle;
 import android.widget.Toast;
@@ -8,9 +8,9 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.example.myapplication.adapter.ArticleAdapter;
-import com.example.myapplication.model.Article;
-import com.example.myapplication.viewmodel.ArticleViewModel;
+import com.example.vnnews.adapter.ArticleAdapter;
+import com.example.vnnews.model.Article;
+import com.example.vnnews.viewmodel.ArticleViewModel;
 
 public class MainActivity extends AppCompatActivity {
     private ArticleViewModel articleViewModel;
@@ -54,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
             "John Doe",
             "2024-01-08",
             "https://example.com/image1.jpg",
-            "Technology"
+            1 // Technology category
         );
         
         Article article2 = new Article(
@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
             "Jane Smith",
             "2024-01-08",
             "https://example.com/image2.jpg",
-            "Science"
+            2 // Science category
         );
 
         articleViewModel.insert(article1);

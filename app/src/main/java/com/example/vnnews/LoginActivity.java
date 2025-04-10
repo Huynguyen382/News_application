@@ -1,88 +1,77 @@
-package com.example.myapplication;
+package com.example.vnnews;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.TextUtils;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.Toast;
-
 import androidx.appcompat.app.AppCompatActivity;
-
-import com.example.myapplication.databinding.ActivityLoginBinding;
+import com.example.vnnews.database.AppDatabase;
+import com.example.vnnews.model.User;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class LoginActivity extends AppCompatActivity {
-    private ActivityLoginBinding binding;
+    private EditText usernameEditText;
+    private EditText passwordEditText;
+    private Button buttonLogin;
+    private Button buttonSignUp;
+    private AppDatabase database;
+    private ExecutorService executorService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        binding = ActivityLoginBinding.inflate(getLayoutInflater());
-        setContentView(binding.getRoot());
+        setContentView(R.layout.activity_login);
 
-        setupClickListeners();
-    }
+        // Initialize views
+        usernameEditText = findViewById(R.id.editTextUsername);
+        passwordEditText = findViewById(R.id.editTextPassword);
+        buttonLogin = findViewById(R.id.buttonLogin);
+        buttonSignUp = findViewById(R.id.buttonSignUp);
 
-    private void setupClickListeners() {
-        binding.buttonBack.setOnClickListener(v -> finish());
+        // Initialize database and executor
+        database = AppDatabase.getInstance(this);
+        executorService = Executors.newSingleThreadExecutor();
 
-        binding.buttonLogin.setOnClickListener(v -> handleLogin());
-
-        binding.buttonGoogle.setOnClickListener(v -> {
-            // TODO: Implement Google Sign In
-            Toast.makeText(this, "Google Sign In clicked", Toast.LENGTH_SHORT).show();
-        });
-
-        binding.buttonFacebook.setOnClickListener(v -> {
-            // TODO: Implement Facebook Sign In
-            Toast.makeText(this, "Facebook Sign In clicked", Toast.LENGTH_SHORT).show();
-        });
-
-        binding.textForgotPassword.setOnClickListener(v -> {
-            // TODO: Navigate to Forgot Password screen
-            Toast.makeText(this, "Forgot Password clicked", Toast.LENGTH_SHORT).show();
-        });
-
-        binding.textRegister.setOnClickListener(v -> {
-            startActivity(new Intent(this, SignUpActivity.class));
-            finish();
+        // Set click listeners
+        buttonLogin.setOnClickListener(v -> handleLogin());
+        buttonSignUp.setOnClickListener(v -> {
+            Intent intent = new Intent(LoginActivity.this, SignUpActivity.class);
+            startActivity(intent);
         });
     }
 
     private void handleLogin() {
-        String username = binding.editTextUsername.getText().toString().trim();
-        String password = binding.editTextPassword.getText().toString().trim();
+        String username = usernameEditText.getText().toString().trim();
+        String password = passwordEditText.getText().toString().trim();
 
-        if (validateInput(username, password)) {
-            // TODO: Implement actual login logic
-            loginUser(username, password);
+        if (username.isEmpty() || password.isEmpty()) {
+            Toast.makeText(this, "Vui lòng điền đầy đủ thông tin", Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        executorService.execute(() -> {
+            User user = database.userDao().login(username, password);
+            runOnUiThread(() -> {
+                if (user != null) {
+                    // Login successful
+                    Toast.makeText(LoginActivity.this, "Đăng nhập thành công", Toast.LENGTH_SHORT).show();
+                    Intent intent = new Intent(LoginActivity.this, ExploreActivity.class);
+                    startActivity(intent);
+                    finish();
+                } else {
+                    // Login failed
+                    Toast.makeText(LoginActivity.this, "Tên đăng nhập hoặc mật khẩu không đúng", Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
     }
 
-    private boolean validateInput(String username, String password) {
-        if (TextUtils.isEmpty(username)) {
-            binding.layoutUsername.setError("Username is required");
-            return false;
-        }
-        binding.layoutUsername.setError(null);
-
-        if (TextUtils.isEmpty(password)) {
-            binding.layoutPassword.setError("Password is required");
-            return false;
-        }
-        binding.layoutPassword.setError(null);
-
-        return true;
-    }
-
-    private void loginUser(String username, String password) {
-        // TODO: Replace with actual authentication logic
-        if (username.equals("admin") && password.equals("password")) {
-            // Login successful
-            Toast.makeText(this, "Login successful", Toast.LENGTH_SHORT).show();
-            startActivity(new Intent(this, MainActivity.class));
-            finish();
-        } else {
-            // Login failed
-            Toast.makeText(this, "Invalid credentials", Toast.LENGTH_SHORT).show();
-        }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        executorService.shutdown();
     }
 } 

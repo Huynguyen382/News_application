@@ -1,4 +1,4 @@
-package com.example.myapplication.adapter;
+package com.example.vnnews.adapter;
 
 import android.view.LayoutInflater;
 import android.view.View;
@@ -10,8 +10,8 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
-import com.example.myapplication.R;
-import com.example.myapplication.model.Article;
+import com.example.vnnews.R;
+import com.example.vnnews.model.Article;
 
 import java.util.ArrayList;
 import java.util.List;

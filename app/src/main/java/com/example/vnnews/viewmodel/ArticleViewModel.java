@@ -1,12 +1,12 @@
-package com.example.myapplication.viewmodel;
+package com.example.vnnews.viewmodel;
 
 import android.app.Application;
 
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 
-import com.example.myapplication.model.Article;
-import com.example.myapplication.repository.ArticleRepository;
+import com.example.vnnews.model.Article;
+import com.example.vnnews.repository.ArticleRepository;
 
 import java.util.List;
 
@@ -24,8 +24,8 @@ public class ArticleViewModel extends AndroidViewModel {
         return allArticles;
     }
 
-    public LiveData<List<Article>> getArticlesByCategory(String category) {
-        return repository.getArticlesByCategory(category);
+    public LiveData<List<Article>> getArticlesByCategory(int categoryId) {
+        return repository.getArticlesByCategory(categoryId);
     }
 
     public LiveData<Article> getArticleById(int id) {

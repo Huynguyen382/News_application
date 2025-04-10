@@ -1,12 +1,12 @@
-package com.example.myapplication.repository;
+package com.example.vnnews.repository;
 
 import android.app.Application;
 
 import androidx.lifecycle.LiveData;
 
-import com.example.myapplication.dao.ArticleDao;
-import com.example.myapplication.database.AppDatabase;
-import com.example.myapplication.model.Article;
+import com.example.vnnews.dao.ArticleDao;
+import com.example.vnnews.database.AppDatabase;
+import com.example.vnnews.model.Article;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -28,8 +28,8 @@ public class ArticleRepository {
         return allArticles;
     }
 
-    public LiveData<List<Article>> getArticlesByCategory(String category) {
-        return articleDao.getArticlesByCategory(category);
+    public LiveData<List<Article>> getArticlesByCategory(int categoryId) {
+        return articleDao.getArticlesByCategory(categoryId);
     }
 
     public LiveData<Article> getArticleById(int id) {
@@ -49,6 +49,6 @@ public class ArticleRepository {
     }
 
     public void deleteAll() {
-        executorService.execute(articleDao::deleteAll);
+        executorService.execute(() -> articleDao.deleteAll());
     }
 } 

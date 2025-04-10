@@ -3,22 +3,24 @@
     <string name="app_name">VNNews</string>
     
     <!-- Common -->
-    <string name="back">Back</string>
-    <string name="or">Or</string>
+    <string name="back">Quay lại</string>
+    <string name="or">Hoặc</string>
     <string name="google">Google</string>
     <string name="facebook">Facebook</string>
     
     <!-- Login -->
-    <string name="login">Login</string>
-    <string name="username">Username:</string>
-    <string name="password">Password:</string>
+    <string name="login">Đăng nhập</string>
+    <string name="username">Tên đăng nhập</string>
+    <string name="password">Mật khẩu</string>
     <string name="forgot_password">Forgot password?</string>
     <string name="dont_have_account">Don\'t have an account? </string>
     <string name="register_now">Register now</string>
     
     <!-- Sign Up -->
-    <string name="sign_up">Sign up</string>
-    <string name="confirm_password">Re-enter password:</string>
-    <string name="have_account">Have an account? </string>
-    <string name="login_now">Login now</string>
+    <string name="sign_up">Đăng ký</string>
+    <string name="confirm_password">Xác nhận mật khẩu</string>
+    <string name="have_account">Đã có tài khoản?</string>
+    <string name="login_now">Đăng nhập ngay</string>
+    <string name="email">Email</string>
+    <string name="full_name">Họ và tên</string>
 </resources>
