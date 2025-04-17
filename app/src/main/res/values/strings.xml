@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VNews</string>
+    
+    <!-- Common -->
+    <string name="back">Quay lại</string>
+    <string name="or">Hoặc</string>
+    <string name="google">Google</string>
+    <string name="facebook">Facebook</string>
+    
+    <!-- Login -->
+    <string name="login">Đăng nhập</string>
+    <string name="username">Tên đăng nhập</string>
+    <string name="password">Mật khẩu</string>
+    <string name="forgot_password">Quên mật khẩu?</string>
+    <string name="dont_have_account">Chưa có tài khoản?</string>
+    <string name="register_now">Đăng ký ngay</string>
+    
+    <!-- Sign Up -->
+    <string name="sign_up">Đăng ký</string>
+    <string name="confirm_password">Xác nhận mật khẩu</string>
+    <string name="have_account">Đã có tài khoản?</string>
+    <string name="login_now">Đăng nhập ngay</string>
+    <string name="email">Email</string>
+    <string name="full_name">Họ và tên</string>
+
+    <!-- Home -->
+    <string name="welcome_user">Xin chào, %1$s</string>
+    <string name="search_hint">Tìm kiếm tin tức...</string>
+    <string name="featured_news">Tin nổi bật</string>
+    <string name="latest_news">Tin mới nhất</string>
+    <string name="tab_all">Tất cả</string>
+    <string name="tab_politics">Chính trị</string>
+    <string name="tab_business">Kinh doanh</string>
+    <string name="tab_sports">Thể thao</string>
+    <string name="bullet_point">•</string>
+
+    <string name="home">Trang chủ</string>
+    <string name="explore">Khám phá</string>
+    <string name="profile">Cá nhân</string>
+    <string name="categories">Thể loại</string>
+    <string name="account">Tài khoản</string>
+    <string name="logout">Đăng xuất</string>
+
+    <string name="news_image_description">News image</string>
+    <string name="read_full_article">Đọc bài viết đầy đủ</string>
+</resources>
