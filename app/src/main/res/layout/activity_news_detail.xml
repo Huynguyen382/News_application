@@ -49,8 +49,9 @@
                         android:id="@+id/newsTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textSize="20sp"
+                        android:textSize="22sp"
                         android:textStyle="bold"
+                        android:textColor="@color/black"
                         android:layout_marginBottom="8dp"
                         tools:text="News Title" />
 
@@ -62,13 +63,53 @@
                         android:textSize="14sp"
                         android:layout_marginBottom="16dp"
                         tools:text="Published Date" />
+                        
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#EEEEEE"
+                        android:layout_marginBottom="16dp" />
+                        
+                    <ProgressBar
+                        android:id="@+id/progressBar"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="16dp"
+                        android:visibility="gone" />
+                        
+                    <TextView
+                        android:id="@+id/newsContent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="16sp"
+                        android:textColor="#333333"
+                        android:lineSpacingExtra="4dp"
+                        android:layout_marginBottom="16dp"
+                        tools:text="Article content goes here..." />
+                        
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#EEEEEE"
+                        android:layout_marginBottom="16dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Nguồn: VnExpress"
+                        android:textColor="@android:color/darker_gray"
+                        android:textSize="14sp"
+                        android:gravity="end"
+                        android:layout_marginBottom="16dp" />
 
                     <Button
                         android:id="@+id/readMoreButton"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/read_full_article"
-                        android:layout_marginTop="16dp" />
+                        android:layout_marginTop="8dp" />
 
                 </LinearLayout>
             </LinearLayout>

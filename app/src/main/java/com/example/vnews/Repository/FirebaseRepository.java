@@ -209,6 +209,77 @@ public class FirebaseRepository {
     }
     
     /**
+     * Login user with username
+     */
+    public void loginWithUsername(String username, String password, final FirestoreCallback<String> callback) {
+        Log.d(TAG, "Bắt đầu đăng nhập với tên đăng nhập: " + username);
+        
+        // Đầu tiên tìm kiếm user theo username
+        db.collection(USERS_COLLECTION)
+                .whereEqualTo("username", username)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    Log.d(TAG, "Kết quả tìm kiếm: " + queryDocumentSnapshots.size() + " documents");
+                    
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        // Tìm thấy user, lấy email để đăng nhập
+                        DocumentSnapshot document = queryDocumentSnapshots.getDocuments().get(0);
+                        users user = document.toObject(users.class);
+                        Log.d(TAG, "Đã tìm thấy user: " + document.getId());
+                        
+                        if (user != null) {
+                            Log.d(TAG, "Thông tin user: username=" + user.getUsername() + ", email=" + user.getEmail());
+                            
+                            if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+                                // Đăng nhập với email và password
+                                Log.d(TAG, "Tiếp tục đăng nhập với email: " + user.getEmail());
+                                loginUser(user.getEmail(), password, callback);
+                            } else {
+                                Log.e(TAG, "Email người dùng rỗng hoặc null");
+                                callback.onError(new Exception("Không tìm thấy thông tin email"));
+                            }
+                        } else {
+                            Log.e(TAG, "Không thể chuyển đổi document thành đối tượng users");
+                            callback.onError(new Exception("Không tìm thấy thông tin tài khoản"));
+                        }
+                    } else {
+                        Log.e(TAG, "Không tìm thấy tên đăng nhập: " + username);
+                        
+                        // Thử tìm kiếm không phân biệt hoa thường (cách này chỉ để debug)
+                        db.collection(USERS_COLLECTION)
+                                .get()
+                                .addOnSuccessListener(allUsers -> {
+                                    boolean found = false;
+                                    for (DocumentSnapshot doc : allUsers.getDocuments()) {
+                                        users u = doc.toObject(users.class);
+                                        if (u != null && u.getUsername() != null) {
+                                            Log.d(TAG, "User trong DB: " + u.getUsername());
+                                            if (u.getUsername().equalsIgnoreCase(username)) {
+                                                Log.d(TAG, "Tìm thấy user khi so sánh không phân biệt hoa thường: " + u.getUsername());
+                                                found = true;
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (!found) {
+                                        Log.e(TAG, "Không tìm thấy user nào có username tương tự: " + username);
+                                    }
+                                    
+                                    callback.onError(new Exception("Tên đăng nhập không tồn tại"));
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Lỗi khi tìm kiếm tất cả người dùng", e);
+                                    callback.onError(new Exception("Tên đăng nhập không tồn tại"));
+                                });
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Lỗi khi tìm kiếm người dùng theo username", e);
+                    callback.onError(e);
+                });
+    }
+    
+    /**
      * Add user profile
      */
     public void addUserProfile(users user, final FirestoreCallback<Void> callback) {
@@ -223,22 +294,135 @@ public class FirebaseRepository {
     }
     
     /**
+     * Check if username exists
+     */
+    public void isUsernameExists(String username, final FirestoreCallback<Boolean> callback) {
+        Log.d(TAG, "Kiểm tra username tồn tại: " + username);
+        
+        db.collection(USERS_COLLECTION)
+                .whereEqualTo("username", username)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    boolean exists = !queryDocumentSnapshots.isEmpty();
+                    Log.d(TAG, "Username " + username + " " + (exists ? "đã tồn tại" : "chưa tồn tại"));
+                    
+                    if (exists) {
+                        // Log các tài khoản được tìm thấy (để debug)
+                        for (DocumentSnapshot doc : queryDocumentSnapshots.getDocuments()) {
+                            users user = doc.toObject(users.class);
+                            if (user != null) {
+                                Log.d(TAG, "User được tìm thấy: " + user.getUsername() + ", email: " + user.getEmail());
+                            }
+                        }
+                    }
+                    
+                    callback.onCallback(exists);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Lỗi khi kiểm tra username", e);
+                    callback.onError(e);
+                });
+    }
+    
+    /**
      * Get user profile
      */
     public void getUserProfile(String userId, final FirestoreCallback<users> callback) {
+        Log.d(TAG, "Getting user profile for userId: " + userId);
+        
+        // First try SERVER_WITH_CACHE_FALLBACK
+        db.collection(USERS_COLLECTION)
+                .document(userId)
+                .get(com.google.firebase.firestore.Source.SERVER)
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        users user = documentSnapshot.toObject(users.class);
+                        Log.d(TAG, "Successfully retrieved user profile from Firestore server");
+                        callback.onCallback(user);
+                    } else {
+                        Log.d(TAG, "User document does not exist on server");
+                        callback.onCallback(null);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error getting user profile from server", e);
+                    // Try getting from cache if there's a network error
+                    tryGetUserProfileFromCache(userId, callback, e);
+                });
+    }
+    
+    /**
+     * Try to get user profile from cache if online fetch failed
+     */
+    private void tryGetUserProfileFromCache(String userId, final FirestoreCallback<users> callback, Exception originalException) {
+        Log.d(TAG, "Attempting to get user profile from cache");
+        
+        // Try to get from default source (which will use cache if available)
         db.collection(USERS_COLLECTION)
                 .document(userId)
                 .get()
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists()) {
                         users user = documentSnapshot.toObject(users.class);
+                        Log.d(TAG, "Successfully retrieved user profile from default source");
                         callback.onCallback(user);
                     } else {
-                        callback.onCallback(null);
+                        // Try one last approach - create a dummy user with just the ID
+                        Log.d(TAG, "User not found in default source - creating offline placeholder");
+                        tryCreateOfflinePlaceholder(userId, callback, originalException);
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error getting user profile", e);
+                    Log.e(TAG, "Error getting user profile from default source", e);
+                    tryCreateOfflinePlaceholder(userId, callback, originalException);
+                });
+    }
+    
+    /**
+     * Create a placeholder user when offline
+     */
+    private void tryCreateOfflinePlaceholder(String userId, final FirestoreCallback<users> callback, Exception originalException) {
+        // If we can't get the user from server or cache, create a basic placeholder
+        // This allows the UI to show something rather than an error
+        Log.d(TAG, "Creating offline placeholder user");
+        
+        try {
+            // Create a basic user with just the ID
+            users offlineUser = new users();
+            offlineUser.setId(userId);
+            offlineUser.setUsername("offline_user");
+            
+            // Get email from Firebase Auth if available, otherwise use placeholder
+            String email = "unavailable@offline.mode";
+            if (mAuth.getCurrentUser() != null && mAuth.getCurrentUser().getEmail() != null) {
+                email = mAuth.getCurrentUser().getEmail();
+                Log.d(TAG, "Using email from Firebase Auth for offline placeholder: " + email);
+            }
+            offlineUser.setEmail(email);
+            
+            callback.onCallback(offlineUser);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to create offline placeholder", e);
+            callback.onError(originalException);
+        }
+    }
+    
+    /**
+     * Get all users (mostly for debugging)
+     */
+    public void getAllUsers(final FirestoreCallback<List<users>> callback) {
+        db.collection(USERS_COLLECTION)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    List<users> usersList = new ArrayList<>();
+                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                        users user = document.toObject(users.class);
+                        usersList.add(user);
+                    }
+                    callback.onCallback(usersList);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error getting all users", e);
                     callback.onError(e);
                 });
     }
@@ -456,6 +640,15 @@ public class FirebaseRepository {
             }
         }
         return "Khách";
+    }
+    
+    /**
+     * Logout current user
+     */
+    public void logoutUser() {
+        if (mAuth != null) {
+            mAuth.signOut();
+        }
     }
     
     /**

@@ -128,18 +128,8 @@ public class HomeActivity extends AppCompatActivity {
             return true;
         });
 
-        // Bottom navigation listener
-        binding.bottomNavigationView.setOnItemSelectedListener(item -> {
-            int itemId = item.getItemId();
-            if (itemId == R.id.navigation_explore) {
-                startActivity(new Intent(this, ExploreActivity.class));
-                return true;
-            } else if (itemId == R.id.navigation_profile) {
-                startActivity(new Intent(this, ProfileActivity.class));
-                return true;
-            }
-            return true;
-        });
+        // Bottom navigation - Sử dụng lớp BottomNavMenu
+        BottomNavMenu.setup(this, binding.bottomNavigationView, R.id.navigation_home);
 
         // Search icon click
         binding.searchIcon.setOnClickListener(v -> {
@@ -234,6 +224,8 @@ public class HomeActivity extends AppCompatActivity {
             intent.putExtra("article_title", news.getTitle());
             intent.putExtra("article_url", news.getLink());
             intent.putExtra("article_image", news.getImageUrl());
+            intent.putExtra("article_description", news.getDescription());
+            intent.putExtra("article_pubDate", news.getPubDate());
             startActivity(intent);
         });
     }

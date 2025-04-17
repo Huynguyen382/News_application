@@ -66,5 +66,5 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-common-java8:2.7.0")
     
     // JSoup for XML/HTML parsing
-    implementation("org.jsoup:jsoup:1.16.2")
+    implementation("org.jsoup:jsoup:1.16.1")
 }
