@@ -4,7 +4,8 @@
 <androidx.constraintlayout.widget.ConstraintLayout 
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="24dp">
+    android:padding="24dp"
+    android:background="@color/background_color">
 
     <ImageButton
         android:id="@+id/buttonBack"
@@ -15,6 +16,7 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/back"
         android:src="@drawable/ic_back"
+        app:tint="@color/text_color"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -36,7 +38,7 @@
         android:layout_marginStart="136dp"
         android:layout_marginTop="44dp"
         android:text="@string/sign_up"
-        android:textColor="@color/black"
+        android:textColor="@color/text_color"
         android:textSize="24sp"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
@@ -47,6 +49,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
+        app:boxBackgroundColor="@color/card_background"
+        app:hintTextColor="@color/text_color"
         app:layout_constraintTop_toBottomOf="@id/textSignUp">
 
         <com.google.android.material.textfield.TextInputEditText
@@ -55,6 +59,7 @@
             android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:hint="@string/username"
+            android:textColor="@color/text_color"
             android:inputType="text" />
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -63,6 +68,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
+        app:boxBackgroundColor="@color/card_background"
+        app:hintTextColor="@color/text_color"
         app:layout_constraintTop_toBottomOf="@id/layoutUsername">
 
         <com.google.android.material.textfield.TextInputEditText
@@ -71,6 +78,7 @@
             android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:hint="@string/email"
+            android:textColor="@color/text_color"
             android:inputType="textEmailAddress" />
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -79,6 +87,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
+        app:boxBackgroundColor="@color/card_background"
+        app:hintTextColor="@color/text_color"
         app:layout_constraintTop_toBottomOf="@id/layoutEmail">
 
         <com.google.android.material.textfield.TextInputEditText
@@ -86,6 +96,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/full_name"
+            android:textColor="@color/text_color"
             android:minHeight="48dp"
             android:inputType="textPersonName" />
     </com.google.android.material.textfield.TextInputLayout>
@@ -95,7 +106,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
+        app:boxBackgroundColor="@color/card_background"
+        app:hintTextColor="@color/text_color"
         app:passwordToggleEnabled="true"
+        app:passwordToggleTint="@color/text_color"
         app:layout_constraintTop_toBottomOf="@id/layoutFullName">
 
         <com.google.android.material.textfield.TextInputEditText
@@ -104,6 +118,7 @@
             android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:hint="@string/password"
+            android:textColor="@color/text_color"
             android:inputType="textPassword" />
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -113,7 +128,10 @@
         android:layout_height="wrap_content"
         android:minHeight="48dp"
         android:layout_marginTop="16dp"
+        app:boxBackgroundColor="@color/card_background"
+        app:hintTextColor="@color/text_color"
         app:passwordToggleEnabled="true"
+        app:passwordToggleTint="@color/text_color"
         app:layout_constraintTop_toBottomOf="@id/layoutPassword">
 
         <com.google.android.material.textfield.TextInputEditText
@@ -122,6 +140,7 @@
             android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:hint="@string/confirm_password"
+            android:textColor="@color/text_color"
             android:inputType="textPassword" />
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -142,6 +161,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
         android:text="@string/or"
+        android:textColor="@color/text_color"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/buttonSignUp" />
@@ -183,6 +203,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
         android:text="@string/have_account"
+        android:textColor="@color/text_color"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/buttonGoogle" />
 

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Colors for dark theme -->
+    <color name="background_color">@color/black</color>
+    <color name="card_background">#121212</color>
+    <color name="text_color">@color/white</color>
+    <color name="secondary_text_color">#B3FFFFFF</color> <!-- 70% white -->
+</resources> 
