@@ -2,15 +2,13 @@ package com.example.vnews.View;
 
 import android.content.Intent;
 import android.net.Uri;
-import android.os.AsyncTask;
-import android.os.Build;
 import android.os.Bundle;
-import android.text.Html;
-import android.text.Spanned;
-import android.text.method.LinkMovementMethod;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -22,7 +20,6 @@ import com.example.vnews.R;
 import com.example.vnews.Utils.ArticleScraper;
 import com.example.vnews.databinding.ActivityNewsDetailBinding;
 
-import java.lang.ref.WeakReference;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -43,14 +40,17 @@ public class NewsDetailActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_news_detail);
         
-        // Enable back button in action bar
+        // Thiết lập WebView
+        setupWebView();
+        
+        // Thiết lập thanh công cụ
         setSupportActionBar(binding.toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setDisplayShowHomeEnabled(true);
         }
         
-        // Get data from intent
+        // Lấy dữ liệu từ Intent
         Intent intent = getIntent();
         if (intent != null) {
             String title = intent.getStringExtra("article_title");
@@ -59,23 +59,23 @@ public class NewsDetailActivity extends AppCompatActivity {
             String description = intent.getStringExtra("article_description");
             String pubDate = intent.getStringExtra("article_pubDate");
             
-            // Set data to views
+            // Hiển thị tiêu đề
             if (title != null) {
                 binding.newsTitle.setText(title);
-                // Also set as action bar title
+                // Đặt tiêu đề cho thanh công cụ
                 if (getSupportActionBar() != null) {
                     getSupportActionBar().setTitle("Tin tức");
                 }
             }
             
-            // Format and display the publication date
+            // Định dạng và hiển thị ngày xuất bản
             if (pubDate != null) {
                 binding.newsDate.setText(formatPublishedDate(pubDate));
             } else {
                 binding.newsDate.setVisibility(View.GONE);
             }
             
-            // Load image
+            // Hiển thị hình ảnh chính
             if (imageUrl != null && !imageUrl.isEmpty()) {
                 Glide.with(this)
                         .load(imageUrl)
@@ -86,35 +86,33 @@ public class NewsDetailActivity extends AppCompatActivity {
                 binding.newsImage.setVisibility(View.GONE);
             }
             
-            // Show loading indicator
+            // Hiển thị trạng thái đang tải
             binding.progressBar.setVisibility(View.VISIBLE);
-            binding.newsContent.setVisibility(View.GONE);
+            binding.webView.setVisibility(View.GONE);
             
-            // Fetch full article content if URL is available
+            // Tải nội dung đầy đủ nếu có URL
             if (url != null && !url.isEmpty()) {
-                // Load full article content using JSoup in background thread
+                // Tải nội dung bằng JSoup trong luồng nền
                 loadFullArticleContent(url);
                 
-                // Set up button to open full article in browser
+                // Thiết lập nút để mở bài viết đầy đủ trong trình duyệt
                 binding.readMoreButton.setOnClickListener(v -> {
                     Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                     startActivity(browserIntent);
                 });
             } else {
-                // If URL is not available, just display the description from RSS
+                // Nếu không có URL, chỉ hiển thị mô tả từ RSS
                 binding.progressBar.setVisibility(View.GONE);
-                binding.newsContent.setVisibility(View.VISIBLE);
+                binding.webView.setVisibility(View.VISIBLE);
                 
                 if (description != null) {
-                    // Extract content from CDATA if present
+                    // Trích xuất nội dung từ CDATA nếu có
                     String content = extractContentFromCDATA(description);
                     
-                    // Display the content
-                    Spanned htmlContent = fromHtml(content);
-                    binding.newsContent.setText(htmlContent);
-                    binding.newsContent.setMovementMethod(LinkMovementMethod.getInstance());
+                    // Hiển thị nội dung
+                    loadHtmlContent(content);
                 } else {
-                    binding.newsContent.setVisibility(View.GONE);
+                    binding.webView.setVisibility(View.GONE);
                 }
                 
                 binding.readMoreButton.setVisibility(View.GONE);
@@ -123,50 +121,103 @@ public class NewsDetailActivity extends AppCompatActivity {
     }
     
     /**
-     * Load full article content from the URL using JSoup
+     * Thiết lập WebView
+     */
+    private void setupWebView() {
+        WebView webView = binding.webView;
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                // Ẩn trạng thái đang tải khi trang đã tải xong
+                binding.progressBar.setVisibility(View.GONE);
+                binding.webView.setVisibility(View.VISIBLE);
+            }
+        });
+        
+        WebSettings webSettings = webView.getSettings();
+        webSettings.setJavaScriptEnabled(false); // Tắt JavaScript vì lý do bảo mật
+        webSettings.setLoadWithOverviewMode(true);
+        webSettings.setUseWideViewPort(true);
+        webSettings.setSupportZoom(true);
+        webSettings.setBuiltInZoomControls(true);
+        webSettings.setDisplayZoomControls(false);
+    }
+    
+    /**
+     * Tải nội dung HTML vào WebView
+     */
+    private void loadHtmlContent(String htmlContent) {
+        // Tạo HTML đầy đủ với CSS cho phần hiển thị
+        String styledHtml = 
+                "<html><head>" +
+                "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
+                "<style>" +
+                "body { font-family: 'Roboto', Arial, sans-serif; color: #333; line-height: 1.6; padding: 8px; }" +
+                "img { max-width: 100%; height: auto; display: block; margin: 12px auto; }" +
+                "figcaption { color: #666; font-size: 14px; font-style: italic; text-align: center; margin-bottom: 16px; }" +
+                "p { margin-bottom: 16px; }" +
+                "h2, h3 { margin-top: 20px; margin-bottom: 10px; }" +
+                "</style></head><body>" +
+                htmlContent +
+                "</body></html>";
+        
+        binding.webView.loadDataWithBaseURL(null, styledHtml, "text/html", "utf-8", null);
+    }
+    
+    /**
+     * Tải nội dung đầy đủ của bài viết từ URL
      */
     private void loadFullArticleContent(String url) {
+        // Hiển thị trạng thái đang tải
+        binding.progressBar.setVisibility(View.VISIBLE);
+        binding.webView.setVisibility(View.GONE);
+        
         executor.execute(() -> {
             try {
-                // Get article content using ArticleScraper
+                // Lấy nội dung bài viết bằng ArticleScraper
                 final String htmlContent = ArticleScraper.getArticleContent(url);
                 
-                // Update UI on main thread
+                // Cập nhật UI trên luồng chính
                 runOnUiThread(() -> {
-                    binding.progressBar.setVisibility(View.GONE);
-                    binding.newsContent.setVisibility(View.VISIBLE);
-                    
-                    // Display the content
-                    Spanned content = fromHtml(htmlContent);
-                    binding.newsContent.setText(content);
-                    binding.newsContent.setMovementMethod(LinkMovementMethod.getInstance());
+                    try {
+                        binding.progressBar.setVisibility(View.GONE);
+                        binding.webView.setVisibility(View.VISIBLE);
+                        
+                        // Hiển thị nội dung
+                        loadHtmlContent(htmlContent);
+                        
+                        // Ghi log thành công
+                        Log.d(TAG, "Article content loaded successfully");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error displaying HTML content", e);
+                        displayErrorMessage();
+                    }
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error loading full article content", e);
                 
-                // Update UI on main thread
-                runOnUiThread(() -> {
-                    binding.progressBar.setVisibility(View.GONE);
-                    binding.newsContent.setVisibility(View.VISIBLE);
-                    
-                    // Display error message
-                    binding.newsContent.setText(R.string.error_loading_content);
-                    
-                    // Show toast message
-                    Toast.makeText(NewsDetailActivity.this, 
-                            R.string.error_loading_content, 
-                            Toast.LENGTH_SHORT).show();
-                });
+                // Cập nhật UI trên luồng chính
+                runOnUiThread(this::displayErrorMessage);
             }
         });
     }
     
     /**
-     * Format the published date from RSS format to a more readable format
+     * Hiển thị thông báo lỗi khi nội dung không thể tải
+     */
+    private void displayErrorMessage() {
+        binding.progressBar.setVisibility(View.GONE);
+        binding.webView.setVisibility(View.VISIBLE);
+        loadHtmlContent("<p>" + getString(R.string.error_loading_content) + "</p>");
+        Toast.makeText(this, R.string.error_loading_content, Toast.LENGTH_SHORT).show();
+    }
+    
+    /**
+     * Định dạng ngày xuất bản từ định dạng RSS sang định dạng dễ đọc hơn
      */
     private String formatPublishedDate(String pubDateStr) {
         try {
-            // RSS date format: EEE, dd MMM yyyy HH:mm:ss Z
+            // Định dạng ngày RSS: EEE, dd MMM yyyy HH:mm:ss Z
             SimpleDateFormat inputFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
             SimpleDateFormat outputFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", new Locale("vi", "VN"));
             
@@ -179,10 +230,10 @@ public class NewsDetailActivity extends AppCompatActivity {
     }
     
     /**
-     * Extract content from CDATA section
+     * Trích xuất nội dung từ phần CDATA
      */
     private String extractContentFromCDATA(String description) {
-        // If the description contains CDATA, extract content between CDATA tags
+        // Nếu mô tả chứa CDATA, trích xuất nội dung giữa các thẻ CDATA
         if (description.contains("CDATA[")) {
             Pattern pattern = Pattern.compile("<!\\[CDATA\\[(.*?)\\]\\]>");
             Matcher matcher = pattern.matcher(description);
@@ -193,33 +244,9 @@ public class NewsDetailActivity extends AppCompatActivity {
         return description;
     }
     
-    /**
-     * Extract image URL from HTML content
-     */
-    private String extractImageUrlFromContent(String content) {
-        Pattern pattern = Pattern.compile("<img[^>]+src=\"([^\"]+)\"");
-        Matcher matcher = pattern.matcher(content);
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return null;
-    }
-    
-    /**
-     * Convert HTML to displayable text
-     */
-    @SuppressWarnings("deprecation")
-    private Spanned fromHtml(String html) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            return Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY);
-        } else {
-            return Html.fromHtml(html);
-        }
-    }
-    
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        // Handle back button click
+        // Xử lý khi nhấn nút quay lại
         if (item.getItemId() == android.R.id.home) {
             finish();
             return true;

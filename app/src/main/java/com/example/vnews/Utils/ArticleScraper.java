@@ -30,54 +30,98 @@ public class ArticleScraper {
                     .timeout(10000)
                     .get();
 
-            // Get article title
+            // Get article title for debugging
             Element titleElement = doc.selectFirst("h1.title-detail");
             String title = titleElement != null ? titleElement.text() : "";
             Log.d(TAG, "Article title: " + title);
 
-            // Get article content
-            Elements contentElements = doc.select("div.fck_detail > p, div.fck_detail > figure, div.fck_detail > table, article.fck_detail > p, article.fck_detail > figure");
+            // Try different selectors for article content based on VnExpress layout patterns
+            Elements contentElements = doc.select("article.fck_detail > *");
             
             if (contentElements.isEmpty()) {
-                // Try alternative selectors if the first ones didn't work
-                contentElements = doc.select(".content-detail p, .content-detail figure");
+                // Try alternative selector structures
+                contentElements = doc.select("div.fck_detail > *");
             }
+            
+            if (contentElements.isEmpty()) {
+                // Try more generic selectors
+                contentElements = doc.select(".content-detail > p, .content-detail > figure");
+            }
+            
+            Log.d(TAG, "Found " + contentElements.size() + " content elements");
 
             StringBuilder content = new StringBuilder();
             
-            // We don't add the title because we already display it separately in the UI
-            
             for (Element el : contentElements) {
-                if (el.tagName().equals("p")) {
-                    // Add paragraph
-                    content.append("<p>").append(el.html()).append("</p>");
-                } else if (el.tagName().equals("figure")) {
-                    // Add image
-                    Element img = el.selectFirst("img");
-                    if (img != null) {
-                        String imgSrc = img.attr("src");
-                        String imgDesc = img.attr("alt");
+                String tagName = el.tagName().toLowerCase();
+                
+                // Skip related news sections
+                if (el.hasClass("box-relate") || el.hasClass("box-topping") || 
+                    el.hasClass("related-news") || el.hasClass("social-box")) {
+                    continue;
+                }
+                
+                switch (tagName) {
+                    case "p":
+                        // Process paragraphs
+                        content.append("<p>").append(el.html()).append("</p>");
+                        break;
                         
-                        content.append("<figure>");
-                        content.append("<img src=\"").append(imgSrc).append("\" style=\"width:100%;\" />");
-                        
-                        // Add image caption if available
-                        Element figCaption = el.selectFirst("figcaption");
-                        if (figCaption != null) {
-                            content.append("<figcaption style=\"font-style:italic;color:#666;font-size:14px;margin-top:5px;\">")
-                                   .append(figCaption.text())
-                                   .append("</figcaption>");
+                    case "figure":
+                        // Process images
+                        Element img = el.selectFirst("img[data-src]");
+                        if (img == null) {
+                            img = el.selectFirst("img[src]");
                         }
                         
-                        content.append("</figure>");
-                    }
-                } else if (el.tagName().equals("table")) {
-                    // Add table
-                    content.append(el.outerHtml());
+                        if (img != null) {
+                            String imgSrc = img.hasAttr("data-src") ? img.attr("data-src") : img.attr("src");
+                            
+                            // Make sure URL is absolute
+                            if (imgSrc.startsWith("//")) {
+                                imgSrc = "https:" + imgSrc;
+                            }
+                            
+                            content.append("<img src=\"").append(imgSrc).append("\" />");
+                            
+                            // Add image caption if available
+                            Element figCaption = el.selectFirst("figcaption");
+                            if (figCaption != null && !figCaption.text().isEmpty()) {
+                                content.append("<div style=\"color:#666;font-style:italic;text-align:center;margin-bottom:12px;font-size:14px;\">")
+                                      .append(figCaption.text())
+                                      .append("</div>");
+                            }
+                        }
+                        break;
+                        
+                    case "table":
+                        // Process tables
+                        content.append(el.outerHtml());
+                        break;
+                        
+                    case "h2":
+                    case "h3":
+                        // Process headings
+                        content.append("<").append(tagName).append(">")
+                               .append(el.text())
+                               .append("</").append(tagName).append(">");
+                        break;
+                        
+                    case "ul":
+                    case "ol":
+                        // Process lists
+                        content.append(el.outerHtml());
+                        break;
                 }
             }
 
+            // Add fallback message if no content was scraped
             String result = content.toString();
+            if (result.isEmpty()) {
+                Log.e(TAG, "No content extracted from article");
+                return "<p>Không thể trích xuất nội dung bài viết. Vui lòng nhấn nút 'Đọc bài đầy đủ' để đọc trên VnExpress.</p>";
+            }
+            
             Log.d(TAG, "Successfully scraped article content");
             return result;
 
