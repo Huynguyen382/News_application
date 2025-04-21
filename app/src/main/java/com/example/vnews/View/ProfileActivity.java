@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.Handler;
@@ -158,9 +159,30 @@ public class ProfileActivity extends AppCompatActivity {
     }
     
     private boolean isNetworkAvailable() {
-        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
-        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+        try {
+            ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            
+            if (connectivityManager == null) {
+                return false;
+            }
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+                return capabilities != null && (
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
+            } else {
+                NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+                return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException checking network state", e);
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking network state", e);
+            return false;
+        }
     }
     
     private void displayCachedUserData() {
@@ -175,6 +197,22 @@ public class ProfileActivity extends AppCompatActivity {
                 if (user != null) {
                     updateUserProfileUI(user, true);
                     isDataLoaded = true;
+                    
+                    // Hiển thị thông báo nếu đang dùng dữ liệu cache và không có kết nối
+                    if (!isNetworkAvailable()) {
+                        Toast.makeText(this, "Đang hiển thị dữ liệu đã lưu (ngoại tuyến)", Toast.LENGTH_SHORT).show();
+                        // Thiết lập lại nút thử lại để luôn hiển thị cần kết nối lại
+                        binding.btnRetry.setOnClickListener(v -> {
+                            if (isNetworkAvailable()) {
+                                binding.offlineLayout.setVisibility(View.GONE);
+                                binding.profileContent.setVisibility(View.GONE);
+                                binding.progressBar.setVisibility(View.VISIBLE);
+                                loadUserProfile();
+                            } else {
+                                Toast.makeText(this, "Vẫn chưa có kết nối mạng", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    }
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error parsing cached user data", e);
@@ -207,102 +245,324 @@ public class ProfileActivity extends AppCompatActivity {
         // Clear any pending timeout callbacks
         timeoutHandler.removeCallbacksAndMessages(null);
         
+        // Check if Firebase is available first
+        if (repository instanceof FirebaseRepository && 
+                !((FirebaseRepository)repository).isFirebaseAvailable()) {
+            Log.e(TAG, "Firebase services not available. Showing offline mode");
+            String cachedUserJson = prefs.getString(KEY_USER_CACHE, null);
+            if (cachedUserJson != null) {
+                try {
+                    Gson gson = new Gson();
+                    users cachedUser = gson.fromJson(cachedUserJson, users.class);
+                    if (cachedUser != null) {
+                        updateUserProfileUI(cachedUser, true);
+                        View offlineIndicator = binding.offlineIndicator;
+                        if (offlineIndicator != null) {
+                            offlineIndicator.setVisibility(View.VISIBLE);
+                        }
+                        Toast.makeText(this, "Dịch vụ Google không khả dụng. Sử dụng dữ liệu đã lưu", Toast.LENGTH_SHORT).show();
+                        binding.profileContent.setVisibility(View.VISIBLE);
+                        isDataLoaded = true;
+                        return;
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing cached data", e);
+                }
+            }
+            
+            showOfflineMessage();
+            binding.emptyProfileMessage.setText("Dịch vụ Google không khả dụng. Vui lòng thử lại sau");
+            return;
+        }
+        
         if (!isNetworkAvailable()) {
             Log.d(TAG, "Network is not available, showing offline message");
+            
+            // Nếu có cache, hiển thị cache; nếu không, hiển thị thông báo offline
+            String cachedUserJson = prefs.getString(KEY_USER_CACHE, null);
+            if (cachedUserJson != null) {
+                try {
+                    Gson gson = new Gson();
+                    users cachedUser = gson.fromJson(cachedUserJson, users.class);
+                    if (cachedUser != null) {
+                        // Hiển thị dữ liệu từ cache với indicator rằng đang offline
+                        updateUserProfileUI(cachedUser, true);
+                        View offlineIndicator = binding.offlineIndicator;
+                        if (offlineIndicator != null) {
+                            offlineIndicator.setVisibility(View.VISIBLE);
+                        }
+                        Toast.makeText(this, "Đang sử dụng dữ liệu đã lưu (ngoại tuyến)", Toast.LENGTH_SHORT).show();
+                        binding.profileContent.setVisibility(View.VISIBLE);
+                        isDataLoaded = true;
+                        return;
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing cached user data in loadUserProfile", e);
+                }
+            }
+            
+            // Nếu không có cache hoặc parsing lỗi, hiển thị thông báo offline
             if (!isDataLoaded) {
                 showOfflineMessage();
             }
             return;
         }
         
-        if (repository.isUserLoggedIn()) {
-            String userId = repository.getCurrentUserId();
-            
-            // Ẩn thông báo offline
-            binding.offlineLayout.setVisibility(View.GONE);
-            
-            // Hiển thị trạng thái đang tải (chỉ khi chưa có dữ liệu)
-            if (!isDataLoaded) {
-                binding.profileContent.setVisibility(View.GONE);
-                binding.progressBar.setVisibility(View.VISIBLE);
-            }
-            
-            // Set a flag to track if callback has been called
-            final AtomicBoolean callbackCalled = new AtomicBoolean(false);
-            
-            // Set timeout for Firebase operation
-            timeoutHandler.postDelayed(() -> {
-                // Only show timeout if callback hasn't been called yet
-                if (callbackCalled.compareAndSet(false, true)) {
-                    Log.d(TAG, "Firebase operation timed out");
-                    if (!isDataLoaded) {
-                        binding.progressBar.setVisibility(View.GONE);
-                        showOfflineMessage();
-                    }
-                }
-            }, FIREBASE_TIMEOUT_MS);
-            
-            // Tải thông tin người dùng từ Firestore với timeout
-            repository.getUserProfile(userId, new FirebaseRepository.FirestoreCallback<users>() {
-                @Override
-                public void onCallback(users user) {
-                    // Only process if this is the first callback
-                    if (callbackCalled.compareAndSet(false, true)) {
-                        // Cancel the timeout
-                        timeoutHandler.removeCallbacksAndMessages(null);
-                        
-                        runOnUiThread(() -> {
-                            binding.progressBar.setVisibility(View.GONE);
-                            
-                            if (user != null) {
-                                Log.d(TAG, "User profile loaded successfully");
-                                updateUserProfileUI(user, false);
-                                cacheUserData(user);
-                                isDataLoaded = true;
-                            } else if (!isDataLoaded) {
-                                // User is null, possible offline scenario
-                                Log.d(TAG, "User profile is null");
-                                showOfflineMessage();
-                            }
-                        });
-                    }
+        try {
+            if (repository.isUserLoggedIn()) {
+                String userId = repository.getCurrentUserId();
+                
+                if (userId == null) {
+                    Log.e(TAG, "User ID is null despite user being logged in");
+                    showOfflineMessage();
+                    binding.emptyProfileMessage.setText("Không thể xác định người dùng. Vui lòng đăng nhập lại");
+                    binding.btnRetry.setText("Đăng nhập lại");
+                    binding.btnRetry.setOnClickListener(v -> {
+                        Intent intent = new Intent(ProfileActivity.this, LoginActivity.class);
+                        startActivity(intent);
+                    });
+                    return;
                 }
                 
-                @Override
-                public void onError(Exception e) {
-                    // Only process if this is the first callback
+                // Ẩn thông báo offline
+                binding.offlineLayout.setVisibility(View.GONE);
+                
+                // Hiển thị trạng thái đang tải (chỉ khi chưa có dữ liệu)
+                if (!isDataLoaded) {
+                    binding.profileContent.setVisibility(View.GONE);
+                    binding.progressBar.setVisibility(View.VISIBLE);
+                }
+                
+                // Set a flag to track if callback has been called
+                final AtomicBoolean callbackCalled = new AtomicBoolean(false);
+                
+                // Set timeout for Firebase operation
+                timeoutHandler.postDelayed(() -> {
+                    // Only show timeout if callback hasn't been called yet
                     if (callbackCalled.compareAndSet(false, true)) {
-                        // Cancel the timeout
+                        Log.d(TAG, "Firebase operation timed out");
+                        
+                        // Khi timeout, lấy từ cache nếu có, nếu không hiển thị thông báo offline
+                        String cachedJson = prefs.getString(KEY_USER_CACHE, null);
+                        if (cachedJson != null && !isDataLoaded) {
+                            try {
+                                Gson gson = new Gson();
+                                users cachedUser = gson.fromJson(cachedJson, users.class);
+                                if (cachedUser != null) {
+                                    runOnUiThread(() -> {
+                                        binding.progressBar.setVisibility(View.GONE);
+                                        updateUserProfileUI(cachedUser, true);
+                                        Toast.makeText(ProfileActivity.this, "Sử dụng dữ liệu đã lưu do kết nối chậm", Toast.LENGTH_SHORT).show();
+                                        isDataLoaded = true;
+                                    });
+                                    return;
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error parsing cached user data during timeout", e);
+                            }
+                        }
+                        
+                        // Nếu không có cache hoặc parsing lỗi
+                        if (!isDataLoaded) {
+                            runOnUiThread(() -> {
+                                binding.progressBar.setVisibility(View.GONE);
+                                showOfflineMessage();
+                            });
+                        }
+                    }
+                }, FIREBASE_TIMEOUT_MS);
+                
+                // Tải thông tin người dùng từ Firestore với timeout
+                try {
+                    repository.getUserProfile(userId, new FirebaseRepository.FirestoreCallback<users>() {
+                        @Override
+                        public void onCallback(users user) {
+                            // Only process if this is the first callback
+                            if (callbackCalled.compareAndSet(false, true)) {
+                                // Cancel the timeout
+                                timeoutHandler.removeCallbacksAndMessages(null);
+                                
+                                runOnUiThread(() -> {
+                                    binding.progressBar.setVisibility(View.GONE);
+                                    
+                                    if (user != null) {
+                                        Log.d(TAG, "User profile loaded successfully");
+                                        updateUserProfileUI(user, false);
+                                        cacheUserData(user);
+                                        isDataLoaded = true;
+                                        
+                                        // Ẩn indicator offline nếu có
+                                        View offlineIndicator = binding.offlineIndicator;
+                                        if (offlineIndicator != null) {
+                                            offlineIndicator.setVisibility(View.GONE);
+                                        }
+                                    } else if (!isDataLoaded) {
+                                        // Kiểm tra xem có dữ liệu cache không
+                                        String cachedJson = prefs.getString(KEY_USER_CACHE, null);
+                                        if (cachedJson != null) {
+                                            try {
+                                                Gson gson = new Gson();
+                                                users cachedUser = gson.fromJson(cachedJson, users.class);
+                                                if (cachedUser != null) {
+                                                    updateUserProfileUI(cachedUser, true);
+                                                    Toast.makeText(ProfileActivity.this, "Không tìm thấy dữ liệu mới, hiển thị dữ liệu đã lưu", Toast.LENGTH_SHORT).show();
+                                                    isDataLoaded = true;
+                                                    return;
+                                                }
+                                            } catch (Exception e) {
+                                                Log.e(TAG, "Error parsing cached user data when server returns null", e);
+                                            }
+                                        }
+                                        
+                                        // Nếu không có cache hoặc parsing lỗi
+                                        Log.d(TAG, "User profile is null");
+                                        showOfflineMessage();
+                                    }
+                                });
+                            }
+                        }
+                        
+                        @Override
+                        public void onError(Exception e) {
+                            // Only process if this is the first callback
+                            if (callbackCalled.compareAndSet(false, true)) {
+                                // Cancel the timeout
+                                timeoutHandler.removeCallbacksAndMessages(null);
+                                
+                                Log.e(TAG, "Error loading user profile", e);
+                                
+                                runOnUiThread(() -> {
+                                    if (!isDataLoaded) {
+                                        binding.progressBar.setVisibility(View.GONE);
+                                        
+                                        // Kiểm tra xem có dữ liệu cache không trước khi hiển thị lỗi
+                                        String cachedJson = prefs.getString(KEY_USER_CACHE, null);
+                                        if (cachedJson != null) {
+                                            try {
+                                                Gson gson = new Gson();
+                                                users cachedUser = gson.fromJson(cachedJson, users.class);
+                                                if (cachedUser != null) {
+                                                    updateUserProfileUI(cachedUser, true);
+                                                    
+                                                    // Hiển thị thông báo lỗi cụ thể cho SecurityException
+                                                    if (e instanceof SecurityException) {
+                                                        Toast.makeText(ProfileActivity.this, 
+                                                                "Lỗi kết nối với Google Play Services. Hiển thị dữ liệu đã lưu", 
+                                                                Toast.LENGTH_SHORT).show();
+                                                    } else {
+                                                        Toast.makeText(ProfileActivity.this, 
+                                                                "Lỗi kết nối: Đang hiển thị dữ liệu đã lưu", 
+                                                                Toast.LENGTH_SHORT).show();
+                                                    }
+                                                    
+                                                    isDataLoaded = true;
+                                                    return;
+                                                }
+                                            } catch (Exception ex) {
+                                                Log.e(TAG, "Error parsing cached user data during error", ex);
+                                            }
+                                        }
+                                        
+                                        // Nếu không có cache hoặc parsing lỗi
+                                        // Kiểm tra nếu lỗi do offline hoặc các lỗi khác
+                                        if (e instanceof java.net.UnknownHostException || 
+                                            e instanceof java.io.IOException ||
+                                            e instanceof SecurityException ||
+                                            (e.getMessage() != null && (
+                                                e.getMessage().contains("offline") || 
+                                                e.getMessage().contains("network") || 
+                                                e.getMessage().contains("timeout") ||
+                                                e.getMessage().contains("UNAVAILABLE")))) {
+                                            showOfflineMessage();
+                                            
+                                            if (e instanceof SecurityException) {
+                                                binding.emptyProfileMessage.setText("Lỗi kết nối với Google Play Services");
+                                            }
+                                        } else {
+                                            showOfflineMessage();
+                                            Toast.makeText(ProfileActivity.this, 
+                                                    "Lỗi khi tải thông tin: " + e.getMessage(), 
+                                                    Toast.LENGTH_SHORT).show();
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    });
+                } catch (SecurityException e) {
+                    Log.e(TAG, "SecurityException in getUserProfile, handling gracefully", e);
+                    if (callbackCalled.compareAndSet(false, true)) {
                         timeoutHandler.removeCallbacksAndMessages(null);
                         
-                        Log.e(TAG, "Error loading user profile", e);
-                        
-                        runOnUiThread(() -> {
-                            if (!isDataLoaded) {
-                                binding.progressBar.setVisibility(View.GONE);
-                                
-                                // Kiểm tra nếu lỗi do offline
-                                if (e.getMessage() != null && e.getMessage().contains("offline")) {
-                                    showOfflineMessage();
-                                } else {
-                                    Toast.makeText(ProfileActivity.this, 
-                                            "Lỗi khi tải thông tin: " + e.getMessage(), 
-                                            Toast.LENGTH_SHORT).show();
+                        // Sử dụng dữ liệu cache nếu có
+                        String cachedJson = prefs.getString(KEY_USER_CACHE, null);
+                        if (cachedJson != null) {
+                            try {
+                                Gson gson = new Gson();
+                                users cachedUser = gson.fromJson(cachedJson, users.class);
+                                if (cachedUser != null) {
+                                    runOnUiThread(() -> {
+                                        binding.progressBar.setVisibility(View.GONE);
+                                        updateUserProfileUI(cachedUser, true);
+                                        Toast.makeText(ProfileActivity.this, 
+                                                "Lỗi kết nối với Google Play Services. Hiển thị dữ liệu đã lưu", 
+                                                Toast.LENGTH_SHORT).show();
+                                        isDataLoaded = true;
+                                    });
+                                    return;
                                 }
+                            } catch (Exception ex) {
+                                Log.e(TAG, "Error parsing cached data during SecurityException", ex);
                             }
+                        }
+                        
+                        // Nếu không có cache
+                        runOnUiThread(() -> {
+                            binding.progressBar.setVisibility(View.GONE);
+                            showOfflineMessage();
+                            binding.emptyProfileMessage.setText("Lỗi kết nối với Google Play Services");
                         });
                     }
                 }
-            });
-        } else if (!isDataLoaded) {
+            } else if (!isDataLoaded) {
+                showOfflineMessage();
+                
+                binding.emptyProfileMessage.setText("Vui lòng đăng nhập để xem thông tin tài khoản");
+                binding.btnRetry.setText("Đăng nhập");
+                binding.btnRetry.setOnClickListener(v -> {
+                    Intent intent = new Intent(ProfileActivity.this, LoginActivity.class);
+                    startActivity(intent);
+                });
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException in loadUserProfile", e);
+            String cachedUserJson = prefs.getString(KEY_USER_CACHE, null);
+            if (cachedUserJson != null) {
+                try {
+                    Gson gson = new Gson();
+                    users cachedUser = gson.fromJson(cachedUserJson, users.class);
+                    if (cachedUser != null) {
+                        runOnUiThread(() -> {
+                            binding.progressBar.setVisibility(View.GONE);
+                            updateUserProfileUI(cachedUser, true);
+                            Toast.makeText(this, "Lỗi Google Play Services. Hiển thị dữ liệu đã lưu", Toast.LENGTH_SHORT).show();
+                            binding.profileContent.setVisibility(View.VISIBLE);
+                            isDataLoaded = true;
+                        });
+                        return;
+                    }
+                } catch (Exception ex) {
+                    Log.e(TAG, "Error parsing cached user data", ex);
+                }
+            }
             showOfflineMessage();
-            
-            binding.emptyProfileMessage.setText("Vui lòng đăng nhập để xem thông tin tài khoản");
-            binding.btnRetry.setText("Đăng nhập");
-            binding.btnRetry.setOnClickListener(v -> {
-                Intent intent = new Intent(ProfileActivity.this, LoginActivity.class);
-                startActivity(intent);
-            });
+            binding.emptyProfileMessage.setText("Lỗi kết nối với Google Play Services");
+        } catch (Exception e) {
+            Log.e(TAG, "Unexpected error in loadUserProfile", e);
+            if (!isDataLoaded) {
+                showOfflineMessage();
+                binding.emptyProfileMessage.setText("Lỗi không xác định: " + e.getMessage());
+            }
         }
     }
     
@@ -371,6 +631,16 @@ public class ProfileActivity extends AppCompatActivity {
         binding.progressBar.setVisibility(View.GONE);
         binding.offlineLayout.setVisibility(View.VISIBLE);
         binding.profileContent.setVisibility(View.GONE);
+        
+        // Tùy chỉnh thông báo dựa trên tình trạng dữ liệu
+        String cachedUserJson = prefs.getString(KEY_USER_CACHE, null);
+        if (cachedUserJson != null) {
+            binding.emptyProfileMessage.setText("Không có kết nối mạng. Dữ liệu hiển thị có thể không phải mới nhất.");
+            binding.btnRetry.setText("Thử lại");
+        } else {
+            binding.emptyProfileMessage.setText("Không có kết nối mạng. Vui lòng kết nối và thử lại.");
+            binding.btnRetry.setText("Thử lại");
+        }
     }
     
     @Override

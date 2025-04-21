@@ -18,6 +18,7 @@ import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreSettings;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
@@ -32,8 +33,8 @@ public class FirebaseRepository {
     private static final String TAG = "FirebaseRepository";
     
     // Firebase instances
-    private final FirebaseFirestore db;
-    private final FirebaseAuth mAuth;
+    private FirebaseFirestore db;
+    private FirebaseAuth mAuth;
     
     // Collection names
     private static final String ARTICLES_COLLECTION = "articles";
@@ -46,12 +47,59 @@ public class FirebaseRepository {
     
     // Private constructor for singleton pattern
     public FirebaseRepository() {
-        db = FirebaseFirestore.getInstance();
-        mAuth = FirebaseAuth.getInstance();
+        initFirebase();
+    }
+    
+    /**
+     * Khởi tạo Firebase với xử lý lỗi
+     */
+    private void initFirebase() {
+        try {
+            // Khởi tạo Firebase với xử lý lỗi
+            FirebaseFirestore firestore = null;
+            FirebaseAuth auth = null;
+            
+            try {
+                firestore = FirebaseFirestore.getInstance();
+                auth = FirebaseAuth.getInstance();
+            } catch (IllegalStateException | SecurityException e) {
+                Log.e(TAG, "Error initializing Firebase services", e);
+                // Nếu có lỗi, thử lại với cấu hình offline
+                try {
+                    FirebaseFirestoreSettings settings = new FirebaseFirestoreSettings.Builder()
+                            .setPersistenceEnabled(true)
+                            .setCacheSizeBytes(FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
+                            .build();
+                    
+                    firestore = FirebaseFirestore.getInstance();
+                    firestore.setFirestoreSettings(settings);
+                } catch (Exception firestoreEx) {
+                    Log.e(TAG, "Failed to initialize Firestore with offline settings", firestoreEx);
+                }
+                
+                try {
+                    auth = FirebaseAuth.getInstance();
+                } catch (Exception authEx) {
+                    Log.e(TAG, "Unable to initialize FirebaseAuth, proceeding without auth", authEx);
+                }
+            }
+            
+            db = firestore;
+            mAuth = auth;
+        } catch (Exception e) {
+            Log.e(TAG, "Critical error initializing Firebase, using fallback mode", e);
+            db = null;
+            mAuth = null;
+        }
     }
 
+    /**
+     * Kiểm tra xem Firebase đã được khởi tạo đúng không
+     */
+    public boolean isFirebaseAvailable() {
+        return db != null && mAuth != null;
+    }
 
-    
     // Get singleton instance
     public static FirebaseRepository getInstance() {
         if (instance == null) {
@@ -70,6 +118,12 @@ public class FirebaseRepository {
      * Get all articles
      */
     public void getAllArticles(final FirestoreCallback<List<articles>> callback) {
+        if (db == null) {
+            Log.e(TAG, "Firestore instance is null");
+            callback.onError(new Exception("Firebase services unavailable"));
+            return;
+        }
+        
         db.collection(ARTICLES_COLLECTION)
                 .orderBy("publishedAt", Query.Direction.DESCENDING)
                 .get()
@@ -91,6 +145,12 @@ public class FirebaseRepository {
      * Get articles by category
      */
     public void getArticlesByCategory(String categoryId, final FirestoreCallback<List<articles>> callback) {
+        if (db == null) {
+            Log.e(TAG, "Firestore instance is null");
+            callback.onError(new Exception("Firebase services unavailable"));
+            return;
+        }
+        
         db.collection(ARTICLES_COLLECTION)
                 .whereEqualTo("categoryId", categoryId)
                 .orderBy("publishedAt", Query.Direction.DESCENDING)
@@ -183,6 +243,12 @@ public class FirebaseRepository {
      * Register user with email and password
      */
     public void registerUser(String email, String password, final FirestoreCallback<String> callback) {
+        if (mAuth == null) {
+            Log.e(TAG, "FirebaseAuth instance is null");
+            callback.onError(new Exception("Authentication services unavailable"));
+            return;
+        }
+        
         mAuth.createUserWithEmailAndPassword(email, password)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult() != null && task.getResult().getUser() != null) {
@@ -198,6 +264,12 @@ public class FirebaseRepository {
      * Login user with email and password
      */
     public void loginUser(String email, String password, final FirestoreCallback<String> callback) {
+        if (mAuth == null) {
+            Log.e(TAG, "FirebaseAuth instance is null");
+            callback.onError(new Exception("Authentication services unavailable"));
+            return;
+        }
+        
         mAuth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult() != null && task.getResult().getUser() != null) {
@@ -331,25 +403,96 @@ public class FirebaseRepository {
     public void getUserProfile(String userId, final FirestoreCallback<users> callback) {
         Log.d(TAG, "Getting user profile for userId: " + userId);
         
-        // First try SERVER_WITH_CACHE_FALLBACK
-        db.collection(USERS_COLLECTION)
-                .document(userId)
-                .get(com.google.firebase.firestore.Source.SERVER)
-                .addOnSuccessListener(documentSnapshot -> {
-                    if (documentSnapshot.exists()) {
-                        users user = documentSnapshot.toObject(users.class);
-                        Log.d(TAG, "Successfully retrieved user profile from Firestore server");
-                        callback.onCallback(user);
-                    } else {
-                        Log.d(TAG, "User document does not exist on server");
-                        callback.onCallback(null);
+        if (db == null) {
+            Log.e(TAG, "Firebase unavailable. Using offline placeholder");
+            tryCreateOfflinePlaceholder(userId, callback, new Exception("Firebase unavailable"));
+            return;
+        }
+        
+        try {
+            // First try SERVER_WITH_CACHE_FALLBACK
+            db.collection(USERS_COLLECTION)
+                    .document(userId)
+                    .get(com.google.firebase.firestore.Source.SERVER)
+                    .addOnSuccessListener(documentSnapshot -> {
+                        if (documentSnapshot.exists()) {
+                            users user = documentSnapshot.toObject(users.class);
+                            Log.d(TAG, "Successfully retrieved user profile from Firestore server");
+                            callback.onCallback(user);
+                        } else {
+                            Log.d(TAG, "User document does not exist on server, creating new profile");
+                            // Tạo profile mới khi không tìm thấy
+                            createAndSaveNewUserProfile(userId, callback);
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Error getting user profile from server", e);
+                        // Try getting from cache if there's a network error
+                        tryGetUserProfileFromCache(userId, callback, e);
+                    });
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException when getting user profile. Using cached or offline data", e);
+            tryGetUserProfileFromCache(userId, callback, e);
+        } catch (Exception e) {
+            Log.e(TAG, "Unexpected error when getting user profile", e);
+            tryGetUserProfileFromCache(userId, callback, e);
+        }
+    }
+    
+    /**
+     * Tạo và lưu profile người dùng mới khi không tồn tại
+     */
+    private void createAndSaveNewUserProfile(String userId, final FirestoreCallback<users> callback) {
+        try {
+            // Khởi tạo user mới với dữ liệu từ Firebase Auth
+            users newUser = new users();
+            newUser.setId(userId);
+            
+            String email = "user@example.com";
+            String username = "user_" + userId.substring(0, 5);
+            
+            try {
+                if (mAuth != null && mAuth.getCurrentUser() != null) {
+                    if (mAuth.getCurrentUser().getEmail() != null) {
+                        email = mAuth.getCurrentUser().getEmail();
+                        // Tạo username từ email
+                        username = email.split("@")[0];
                     }
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error getting user profile from server", e);
-                    // Try getting from cache if there's a network error
-                    tryGetUserProfileFromCache(userId, callback, e);
-                });
+                    
+                    if (mAuth.getCurrentUser().getDisplayName() != null && 
+                        !mAuth.getCurrentUser().getDisplayName().isEmpty()) {
+                        username = mAuth.getCurrentUser().getDisplayName();
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting auth user info", e);
+            }
+            
+            newUser.setEmail(email);
+            newUser.setUsername(username);
+            
+            // Lưu vào Firestore
+            if (db != null) {
+                db.collection(USERS_COLLECTION)
+                    .document(userId)
+                    .set(newUser)
+                    .addOnSuccessListener(aVoid -> {
+                        Log.d(TAG, "Successfully created new user profile");
+                        callback.onCallback(newUser);
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Failed to save new user profile", e);
+                        // Vẫn trả về user đã tạo
+                        callback.onCallback(newUser);
+                    });
+            } else {
+                Log.e(TAG, "Firestore unavailable for saving profile, returning local user");
+                callback.onCallback(newUser);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating new user profile", e);
+            tryCreateOfflinePlaceholder(userId, callback, e);
+        }
     }
     
     /**
@@ -357,6 +500,12 @@ public class FirebaseRepository {
      */
     private void tryGetUserProfileFromCache(String userId, final FirestoreCallback<users> callback, Exception originalException) {
         Log.d(TAG, "Attempting to get user profile from cache");
+        
+        if (db == null) {
+            Log.e(TAG, "Firestore instance is null, creating offline placeholder");
+            tryCreateOfflinePlaceholder(userId, callback, originalException);
+            return;
+        }
         
         // Try to get from default source (which will use cache if available)
         db.collection(USERS_COLLECTION)
@@ -395,9 +544,14 @@ public class FirebaseRepository {
             
             // Get email from Firebase Auth if available, otherwise use placeholder
             String email = "unavailable@offline.mode";
-            if (mAuth.getCurrentUser() != null && mAuth.getCurrentUser().getEmail() != null) {
-                email = mAuth.getCurrentUser().getEmail();
-                Log.d(TAG, "Using email from Firebase Auth for offline placeholder: " + email);
+            try {
+                if (mAuth != null && mAuth.getCurrentUser() != null && mAuth.getCurrentUser().getEmail() != null) {
+                    email = mAuth.getCurrentUser().getEmail();
+                    Log.d(TAG, "Using email from Firebase Auth for offline placeholder: " + email);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error accessing FirebaseAuth in offline placeholder", e);
+                // Continue with default email
             }
             offlineUser.setEmail(email);
             
@@ -412,6 +566,12 @@ public class FirebaseRepository {
      * Get all users (mostly for debugging)
      */
     public void getAllUsers(final FirestoreCallback<List<users>> callback) {
+        if (db == null) {
+            Log.e(TAG, "Firestore instance is null");
+            callback.onError(new Exception("Firebase services unavailable"));
+            return;
+        }
+        
         db.collection(USERS_COLLECTION)
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
@@ -432,6 +592,12 @@ public class FirebaseRepository {
      * Update user profile
      */
     public void updateUserProfile(users user, final FirestoreCallback<Void> callback) {
+        if (db == null) {
+            Log.e(TAG, "Firestore instance is null");
+            callback.onError(new Exception("Firebase services unavailable"));
+            return;
+        }
+        
         db.collection(USERS_COLLECTION)
                 .document(user.getId())
                 .set(user)
@@ -450,6 +616,12 @@ public class FirebaseRepository {
     public void saveArticle(String userId, String articleId, final FirestoreCallback<String> callback) {
         if (userId == null || articleId == null) {
             callback.onError(new Exception("User ID hoặc Article ID không được để trống"));
+            return;
+        }
+        
+        if (db == null) {
+            Log.e(TAG, "Firestore instance is null");
+            callback.onError(new Exception("Firebase services unavailable"));
             return;
         }
         
@@ -509,10 +681,11 @@ public class FirebaseRepository {
         }
         
         try {
+            // Thêm tham số Source.DEFAULT để ưu tiên lấy từ cache nếu có
             db.collection(SAVED_ARTICLES_COLLECTION)
                     .whereEqualTo("userId", userId)
                     .orderBy("savedAt", Query.Direction.DESCENDING)
-                    .get()
+                    .get(com.google.firebase.firestore.Source.DEFAULT)
                     .addOnSuccessListener(queryDocumentSnapshots -> {
                         List<String> articleIds = new ArrayList<>();
                         for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
@@ -529,12 +702,119 @@ public class FirebaseRepository {
                         getArticlesByIds(articleIds, callback);
                     })
                     .addOnFailureListener(e -> {
-                        Log.e(TAG, "Error getting saved articles", e);
-                        callback.onError(new Exception("Không thể tải bài viết đã lưu. Lỗi: " + e.getMessage()));
+                        Log.e(TAG, "Error getting saved articles, retrying with cache only", e);
+                        
+                        // Nếu có lỗi (SecurityException), thử lại từ cache
+                        if (e instanceof SecurityException) {
+                            retrySavedArticlesFromCache(userId, callback);
+                        } else {
+                            callback.onError(new Exception("Không thể tải bài viết đã lưu. Lỗi: " + e.getMessage()));
+                        }
                     });
         } catch (Exception e) {
             Log.e(TAG, "Error in getSavedArticles", e);
             callback.onCallback(new ArrayList<>());
+        }
+    }
+    
+    /**
+     * Thử lại lấy bài viết đã lưu khi có lỗi, chỉ dùng cache
+     */
+    private void retrySavedArticlesFromCache(String userId, final FirestoreCallback<List<articles>> callback) {
+        try {
+            db.collection(SAVED_ARTICLES_COLLECTION)
+                    .whereEqualTo("userId", userId)
+                    .orderBy("savedAt", Query.Direction.DESCENDING)
+                    .get(com.google.firebase.firestore.Source.CACHE)
+                    .addOnSuccessListener(queryDocumentSnapshots -> {
+                        List<String> articleIds = new ArrayList<>();
+                        for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                            saved_articles savedArticle = document.toObject(saved_articles.class);
+                            articleIds.add(savedArticle.getArticleId());
+                        }
+                        
+                        if (articleIds.isEmpty()) {
+                            callback.onCallback(new ArrayList<>());
+                            return;
+                        }
+                        
+                        // Get the articles from cache
+                        getArticlesByIdsFromCache(articleIds, callback);
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Error getting saved articles from cache", e);
+                        callback.onError(new Exception("Không thể tải bài viết từ bộ nhớ tạm. Lỗi: " + e.getMessage()));
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Error in retrySavedArticlesFromCache", e);
+            callback.onCallback(new ArrayList<>());
+        }
+    }
+    
+    /**
+     * Get articles by list of ids from cache
+     */
+    private void getArticlesByIdsFromCache(List<String> articleIds, final FirestoreCallback<List<articles>> callback) {
+        if (articleIds == null || articleIds.isEmpty()) {
+            callback.onCallback(new ArrayList<>());
+            return;
+        }
+        
+        List<articles> articlesList = new ArrayList<>();
+        final int[] count = {0};
+        
+        try {
+            for (String articleId : articleIds) {
+                // Dùng URL để tạo bài viết giả
+                if (articleId.startsWith("http")) {
+                    articles article = createArticleFromUrl(articleId);
+                    articlesList.add(article);
+                    count[0]++;
+                    
+                    if (count[0] == articleIds.size()) {
+                        callback.onCallback(articlesList);
+                    }
+                    continue;
+                }
+                
+                db.collection(ARTICLES_COLLECTION)
+                        .document(articleId)
+                        .get(com.google.firebase.firestore.Source.CACHE)
+                        .addOnSuccessListener(documentSnapshot -> {
+                            if (documentSnapshot.exists()) {
+                                articles article = documentSnapshot.toObject(articles.class);
+                                articlesList.add(article);
+                            } else {
+                                // Nếu không tìm thấy, thử tạo bài viết giả từ URL
+                                articles article = createArticleFromUrl(articleId);
+                                if (article != null) {
+                                    articlesList.add(article);
+                                }
+                            }
+                            
+                            count[0]++;
+                            if (count[0] == articleIds.size()) {
+                                callback.onCallback(articlesList);
+                            }
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Error getting article by id from cache", e);
+                            
+                            // Nếu lỗi, thử tạo bài viết giả từ URL
+                            articles article = createArticleFromUrl(articleId);
+                            if (article != null) {
+                                articlesList.add(article);
+                            }
+                            
+                            count[0]++;
+                            if (count[0] == articleIds.size()) {
+                                callback.onCallback(articlesList);
+                            }
+                        });
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in getArticlesByIdsFromCache", e);
+            callback.onCallback(articlesList);
         }
     }
     
@@ -801,15 +1081,29 @@ public class FirebaseRepository {
      * Check if a user is currently logged in
      */
     public boolean isUserLoggedIn() {
-        return mAuth.getCurrentUser() != null;
+        try {
+            return mAuth != null && mAuth.getCurrentUser() != null;
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException in isUserLoggedIn", e);
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "Error in isUserLoggedIn", e);
+            return false;
+        }
     }
     
     /**
      * Get current user ID
      */
     public String getCurrentUserId() {
-        if (mAuth.getCurrentUser() != null) {
-            return mAuth.getCurrentUser().getUid();
+        try {
+            if (mAuth != null && mAuth.getCurrentUser() != null) {
+                return mAuth.getCurrentUser().getUid();
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException in getCurrentUserId", e);
+        } catch (Exception e) {
+            Log.e(TAG, "Error in getCurrentUserId", e);
         }
         return null;
     }
@@ -818,13 +1112,19 @@ public class FirebaseRepository {
      * Get current user name or email as fallback
      */
     public String getCurrentUserName() {
-        if (mAuth.getCurrentUser() != null) {
-            if (mAuth.getCurrentUser().getDisplayName() != null && 
-                !mAuth.getCurrentUser().getDisplayName().isEmpty()) {
-                return mAuth.getCurrentUser().getDisplayName();
-            } else {
-                return mAuth.getCurrentUser().getEmail();
+        try {
+            if (mAuth != null && mAuth.getCurrentUser() != null) {
+                if (mAuth.getCurrentUser().getDisplayName() != null && 
+                    !mAuth.getCurrentUser().getDisplayName().isEmpty()) {
+                    return mAuth.getCurrentUser().getDisplayName();
+                } else if (mAuth.getCurrentUser().getEmail() != null) {
+                    return mAuth.getCurrentUser().getEmail();
+                }
             }
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException in getCurrentUserName", e);
+        } catch (Exception e) {
+            Log.e(TAG, "Error in getCurrentUserName", e);
         }
         return "Khách";
     }
@@ -833,8 +1133,14 @@ public class FirebaseRepository {
      * Logout current user
      */
     public void logoutUser() {
-        if (mAuth != null) {
-            mAuth.signOut();
+        try {
+            if (mAuth != null) {
+                mAuth.signOut();
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException when logging out", e);
+        } catch (Exception e) {
+            Log.e(TAG, "Error during logout", e);
         }
     }
     
@@ -844,5 +1150,18 @@ public class FirebaseRepository {
     public interface FirestoreCallback<T> {
         void onCallback(T result);
         void onError(Exception e);
+    }
+
+    /**
+     * Khởi tạo lại Firebase nếu các instance bị null
+     * @return true nếu khởi tạo thành công, false nếu không
+     */
+    public boolean reinitializeFirebaseIfNeeded() {
+        if (db == null || mAuth == null) {
+            Log.d(TAG, "Attempting to reinitialize Firebase services");
+            initFirebase();
+            return isFirebaseAvailable();
+        }
+        return true;
     }
 }

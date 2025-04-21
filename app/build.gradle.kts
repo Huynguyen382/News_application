@@ -51,6 +51,8 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore:24.10.3")
     implementation("com.google.firebase:firebase-auth:22.3.1")
     implementation("com.google.firebase:firebase-core:21.1.1")
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+    implementation("com.google.android.gms:play-services-base:18.3.0")
     
     // Glide for image loading (with enhanced caching and performance)
     implementation("com.github.bumptech.glide:glide:4.15.1")
