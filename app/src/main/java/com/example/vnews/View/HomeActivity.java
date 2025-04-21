@@ -7,6 +7,8 @@ import android.text.format.DateFormat;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toast;
+import android.content.Context;
+import android.view.inputmethod.InputMethodManager;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -62,6 +64,7 @@ public class HomeActivity extends AppCompatActivity {
 
         setupUI();
         setupListeners();
+        setupTouchListenerToHideKeyboard();
         loadRssNews();
     }
 
@@ -80,6 +83,16 @@ public class HomeActivity extends AppCompatActivity {
         // Setup RecyclerView
         binding.latestNewsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         binding.latestNewsRecyclerView.setAdapter(newsAdapter);
+        
+        // Ẩn bàn phím khi người dùng tương tác với RecyclerView
+        binding.latestNewsRecyclerView.setOnTouchListener((v, event) -> {
+            // Kiểm tra xem ô tìm kiếm có đang có focus không
+            if (binding.searchEditText.hasFocus()) {
+                hideKeyboard();
+                binding.searchEditText.clearFocus();
+            }
+            return false; // Để RecyclerView vẫn xử lý sự kiện scroll
+        });
 
         // Load user avatar
         Glide.with(this)
@@ -122,18 +135,63 @@ public class HomeActivity extends AppCompatActivity {
 
         // Swipe refresh listener
         binding.swipeRefreshLayout.setOnRefreshListener(this::loadRssNews);
+        
+        // Ẩn bàn phím khi vuốt để làm mới
+        binding.swipeRefreshLayout.getViewTreeObserver().addOnScrollChangedListener(() -> {
+            if (binding.searchEditText.hasFocus()) {
+                hideKeyboard();
+                binding.searchEditText.clearFocus();
+            }
+        });
 
         // Search listener
         binding.searchEditText.setOnEditorActionListener((v, actionId, event) -> {
             String query = v.getText().toString().trim();
             if (!query.isEmpty()) {
                 searchNews(query);
+                
+                // Ẩn bàn phím sau khi tìm kiếm
+                hideKeyboard();
+                
+                // Xóa focus khỏi EditText
+                v.clearFocus();
             }
             return true;
         });
 
         // Bottom navigation - Sử dụng lớp BottomNavMenu
         BottomNavMenu.setup(this, binding.bottomNavigationView, R.id.navigation_home);
+    }
+
+    // Phương thức thiết lập sự kiện touch cho layout chính
+    private void setupTouchListenerToHideKeyboard() {
+        // Lấy layout chính của activity
+        View mainLayout = findViewById(android.R.id.content);
+        
+        // Thêm sự kiện touch
+        mainLayout.setOnTouchListener((v, event) -> {
+            // Lấy view đang có focus
+            View currentFocus = getCurrentFocus();
+            
+            // Chỉ ẩn bàn phím khi currentFocus không phải null và không phải là ô tìm kiếm
+            if (currentFocus != null && currentFocus.getId() != binding.searchEditText.getId()) {
+                // Ẩn bàn phím
+                hideKeyboard();
+                // Xóa focus
+                currentFocus.clearFocus();
+            }
+            
+            return false; // Cho phép các sự kiện touch khác tiếp tục xử lý
+        });
+    }
+    
+    // Phương thức tiện ích để ẩn bàn phím
+    private void hideKeyboard() {
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        View currentFocusView = getCurrentFocus();
+        if (currentFocusView != null) {
+            imm.hideSoftInputFromWindow(currentFocusView.getWindowToken(), 0);
+        }
     }
 
     // Load news from VnExpress RSS feed
@@ -230,6 +288,12 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void searchNews(String query) {
+        // Đảm bảo query không rỗng
+        if (query == null || query.trim().isEmpty()) {
+            Toast.makeText(this, "Vui lòng nhập từ khóa tìm kiếm", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
         // Implement search functionality - filter the current list
         if (newsList != null && !newsList.isEmpty()) {
             List<RssNewsItem> filteredList = new ArrayList<>();
@@ -243,10 +307,17 @@ public class HomeActivity extends AppCompatActivity {
             
             if (filteredList.isEmpty()) {
                 Toast.makeText(this, "Không tìm thấy kết quả cho: " + query, Toast.LENGTH_SHORT).show();
+                
+                // Không xóa nội dung ô tìm kiếm để người dùng có thể sửa
             } else {
                 newsAdapter.updateNewsList(filteredList);
                 Toast.makeText(this, "Tìm thấy " + filteredList.size() + " kết quả", Toast.LENGTH_SHORT).show();
+                
+                // Xóa nội dung ô tìm kiếm vì tìm kiếm thành công
+                binding.searchEditText.setText("");
             }
+        } else {
+            Toast.makeText(this, "Không có dữ liệu tin tức để tìm kiếm", Toast.LENGTH_SHORT).show();
         }
     }
 

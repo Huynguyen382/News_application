@@ -179,7 +179,7 @@
             <LinearLayout
                 android:id="@+id/eyeProtectionLayout"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:orientation="horizontal"
                 android:padding="12dp"
                 android:gravity="center_vertical"
@@ -191,7 +191,8 @@
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:src="@drawable/ic_eye_protection"
-                    android:tint="@color/blue" />
+                    android:tint="@color/blue"
+                    android:layout_marginStart="1dp" />
 
                 <TextView
                     android:layout_width="0dp"
@@ -207,8 +208,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:thumb="@drawable/switch_thumb"
-                    android:scaleX="0.8"
-                    android:scaleY="0.8"
+                    android:scaleX="0.75"
+                    android:scaleY="0.75"
+                    android:layout_marginEnd="2dp"
                     app:track="@drawable/switch_track_selector" />
             </LinearLayout>
 
@@ -220,7 +222,7 @@
             <LinearLayout
                 android:id="@+id/personalInfoLayout"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:orientation="horizontal"
                 android:padding="12dp"
                 android:gravity="center_vertical"
@@ -232,7 +234,8 @@
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:src="@drawable/ic_person"
-                    android:tint="@color/blue"/>
+                    android:tint="@color/blue"
+                    android:layout_marginStart="1dp"/>
 
                 <TextView
                     android:layout_width="0dp"
@@ -247,7 +250,8 @@
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:src="@drawable/ic_arrow_right"
-                    android:tint="@color/text_color"/>
+                    android:tint="@color/text_color"
+                    android:layout_marginEnd="2dp"/>
             </LinearLayout>
 
             <View
@@ -258,7 +262,7 @@
             <LinearLayout
                 android:id="@+id/changePasswordLayout"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:orientation="horizontal"
                 android:padding="12dp"
                 android:gravity="center_vertical"
@@ -270,7 +274,8 @@
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:src="@drawable/ic_lock"
-                    android:tint="@color/blue"/>
+                    android:tint="@color/blue"
+                    android:layout_marginStart="1dp"/>
 
                 <TextView
                     android:layout_width="0dp"
@@ -285,7 +290,8 @@
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:src="@drawable/ic_arrow_right"
-                    android:tint="@color/text_color"/>
+                    android:tint="@color/text_color"
+                    android:layout_marginEnd="2dp"/>
             </LinearLayout>
 
             <View
@@ -296,7 +302,7 @@
             <LinearLayout
                 android:id="@+id/appInfoLayout"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:orientation="horizontal"
                 android:padding="12dp"
                 android:gravity="center_vertical"
@@ -308,7 +314,8 @@
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:src="@drawable/ic_info"
-                    android:tint="@color/blue"/>
+                    android:tint="@color/blue"
+                    android:layout_marginStart="1dp"/>
 
                 <TextView
                     android:layout_width="0dp"
@@ -323,7 +330,8 @@
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:src="@drawable/ic_arrow_right"
-                    android:tint="@color/text_color"/>
+                    android:tint="@color/text_color"
+                    android:layout_marginEnd="2dp"/>
             </LinearLayout>
 
             <View
@@ -334,7 +342,7 @@
             <LinearLayout
                 android:id="@+id/buttonLogout"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center_vertical"
@@ -346,7 +354,8 @@
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:src="@drawable/ic_logout"
-                    android:tint="@color/blue" />
+                    android:tint="@color/blue"
+                    android:layout_marginStart="1dp" />
 
                 <TextView
                     android:layout_width="0dp"
@@ -361,7 +370,8 @@
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:src="@drawable/ic_arrow_right"
-                    android:tint="@color/text_color" />
+                    android:tint="@color/text_color"
+                    android:layout_marginEnd="2dp"/>
             </LinearLayout>
             
             <View
