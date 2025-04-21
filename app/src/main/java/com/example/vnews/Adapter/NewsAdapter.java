@@ -1,8 +1,14 @@
 package com.example.vnews.Adapter;
 
+import android.animation.ArgbEvaluator;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Resources;
+import android.os.Build;
 import android.os.Handler;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,6 +20,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.cardview.widget.CardView;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
@@ -212,61 +219,135 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.NewsViewHolder
             context.startActivity(intent);
         });
 
+        // Đặt màu nền mặc định cho tất cả các bài viết
+        holder.cardView.setCardBackgroundColor(getCardBackgroundColor());
+
         // Chỉ hiển thị chức năng long press để lưu khi không phải từ SavedArticles
         if (!isFromSavedArticles) {
             setupLongPressListener(holder.cardView, news);
         }
     }
 
-    private void setupLongPressListener(View view, RssNewsItem news) {
+    private void setupLongPressListener(CardView cardView, RssNewsItem news) {
         final Handler handler = new Handler();
-        final Runnable longPressRunnable = () -> saveArticle(news);
+        final Runnable longPressRunnable = () -> {
+            // Provide vibration feedback when the long press duration is reached
+            provideVibrationFeedback();
+            saveArticle(cardView, news);
+        };
 
-        view.setOnLongClickListener(v -> {
+        // Flag để kiểm soát hiệu ứng màu
+        final boolean[] isLongPressing = {false};
+
+        cardView.setOnLongClickListener(v -> {
+            // Reset trạng thái
+            isLongPressing[0] = true;
+            
+            // Thay đổi màu nền với animation khi bắt đầu nhấn giữ
+            animateCardBackground(cardView, 
+                    getCardBackgroundColor(), 
+                    getCardLongPressColor(), 
+                    300); // Thời gian animation 300ms
+            
+            // Provide short vibration feedback when starting long press
+            provideShortVibrationFeedback();
+            
             handler.postDelayed(longPressRunnable, LONG_PRESS_DURATION);
             // Hiển thị thông báo nhỏ
             Toast.makeText(context, "Giữ thêm 1 giây để lưu bài viết", Toast.LENGTH_SHORT).show();
             return true;
         });
 
-        view.setOnTouchListener((v, event) -> {
+        cardView.setOnTouchListener((v, event) -> {
             switch (event.getAction()) {
                 case android.view.MotionEvent.ACTION_UP:
                 case android.view.MotionEvent.ACTION_CANCEL:
                     handler.removeCallbacks(longPressRunnable);
+                    
+                    // Khi thả tay, kiểm tra xem bài viết đã được lưu chưa
+                    if (isLongPressing[0]) {
+                        isLongPressing[0] = false;
+                        checkAndRestoreCardColor(cardView, news);
+                    }
                     break;
             }
             return false;
         });
     }
+    
+    // Phương thức riêng để kiểm tra và khôi phục màu sắc card dựa trên trạng thái lưu
+    private void checkAndRestoreCardColor(CardView cardView, RssNewsItem news) {
+        // Luôn trả về màu trắng khi thả tay, bất kể trạng thái lưu
+        animateCardBackground(cardView, 
+                getCardLongPressColor(), 
+                getCardBackgroundColor(), 
+                300);
+    }
 
-    private void saveArticle(RssNewsItem news) {
+    private void saveArticle(CardView cardView, RssNewsItem news) {
         // Kiểm tra người dùng đã đăng nhập chưa
         if (!repository.isUserLoggedIn()) {
             Toast.makeText(context, "Vui lòng đăng nhập để lưu bài viết", Toast.LENGTH_SHORT).show();
+            animateCardBackground(cardView, 
+                    getCardLongPressColor(), 
+                    getCardBackgroundColor(), 
+                    300);
             return;
         }
 
         String userId = repository.getCurrentUserId();
-        String articleId = news.getLink(); // Sử dụng URL làm ID của bài viết
-
+        
         // Kiểm tra xem bài viết đã được lưu chưa
-        repository.isArticleSaved(userId, articleId, new FirebaseRepository.FirestoreCallback<Boolean>() {
+        repository.isArticleSaved(userId, news.getLink(), new FirebaseRepository.FirestoreCallback<Boolean>() {
             @Override
             public void onCallback(Boolean isSaved) {
                 if (isSaved) {
-                    Toast.makeText(context, "Bài viết này đã được lưu trước đó", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "Bài viết đã được lưu trước đó", Toast.LENGTH_SHORT).show();
+                    
+                    // Hiển thị màu xanh trong 1 giây, sau đó trở về màu trắng
+                    animateCardBackground(cardView, 
+                            getCardLongPressColor(), 
+                            getCardSavedColor(), 
+                            300);
+                    
+                    // Đặt hẹn giờ để trở về màu trắng sau 1 giây
+                    new Handler().postDelayed(() -> {
+                        animateCardBackground(cardView,
+                                getCardSavedColor(),
+                                getCardBackgroundColor(),
+                                300);
+                    }, 1000);
+                    
                 } else {
                     // Lưu bài viết
-                    repository.saveArticle(userId, articleId, new FirebaseRepository.FirestoreCallback<String>() {
+                    repository.saveArticle(userId, news.getLink(), new FirebaseRepository.FirestoreCallback<String>() {
                         @Override
                         public void onCallback(String result) {
-                            Toast.makeText(context, "Đã lưu bài viết thành công", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, "Đã lưu bài viết", Toast.LENGTH_SHORT).show();
+                            
+                            // Thay đổi màu nền với animation khi lưu thành công
+                            animateCardBackground(cardView, 
+                                    getCardLongPressColor(), 
+                                    getCardSavedColor(), 
+                                    500); // Thời gian animation dài hơn để tạo hiệu ứng nổi bật
+                            
+                            // Đặt hẹn giờ để trở về màu trắng sau 1 giây
+                            new Handler().postDelayed(() -> {
+                                animateCardBackground(cardView,
+                                        getCardSavedColor(),
+                                        getCardBackgroundColor(),
+                                        300);
+                            }, 1000);
                         }
 
                         @Override
                         public void onError(Exception e) {
-                            Toast.makeText(context, "Lỗi khi lưu bài viết: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            // Khôi phục màu nền ban đầu nếu có lỗi
+                            animateCardBackground(cardView, 
+                                    getCardLongPressColor(), 
+                                    getCardBackgroundColor(), 
+                                    300);
                         }
                     });
                 }
@@ -274,9 +355,25 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.NewsViewHolder
 
             @Override
             public void onError(Exception e) {
-                Toast.makeText(context, "Lỗi khi kiểm tra bài viết: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                // Khôi phục màu nền ban đầu nếu có lỗi
+                animateCardBackground(cardView, 
+                        getCardLongPressColor(), 
+                        getCardBackgroundColor(), 
+                        300);
             }
         });
+    }
+    
+    // Phương thức để tạo animation chuyển đổi màu nền
+    private void animateCardBackground(CardView cardView, int colorFrom, int colorTo, int duration) {
+        ValueAnimator colorAnimation = ValueAnimator.ofObject(new ArgbEvaluator(), colorFrom, colorTo);
+        colorAnimation.setDuration(duration);
+        colorAnimation.addUpdateListener(animator -> {
+            int animatedValue = (int) animator.getAnimatedValue();
+            cardView.setCardBackgroundColor(animatedValue);
+        });
+        colorAnimation.start();
     }
 
     @Override
@@ -284,15 +381,8 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.NewsViewHolder
         return newsList != null ? newsList.size() : 0;
     }
 
-    // Add items to adapter
     public void updateNewsList(List<RssNewsItem> newsList) {
-        if (this.newsList == null) {
-            this.newsList = new ArrayList<>();
-        }
-        this.newsList.clear();
-        if (newsList != null) {
-            this.newsList.addAll(newsList);
-        }
+        this.newsList = newsList;
         notifyDataSetChanged();
     }
 
@@ -300,9 +390,75 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.NewsViewHolder
      * Kiểm tra chuỗi có chứa ký tự tiếng Việt không
      */
     private boolean containsVietnameseCharacters(String text) {
-        if (text == null) return false;
-        // Mở rộng regex để bắt nhiều ký tự tiếng Việt hơn, bao gồm cả chữ hoa
-        return text.matches(".*[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ].*");
+        return text != null && text.matches(".*[ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵỷỹ].*");
+    }
+
+    // Phương thức để cung cấp phản hồi rung ngắn khi bắt đầu nhấn giữ
+    private void provideShortVibrationFeedback() {
+        try {
+            Vibrator vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE));
+                } else {
+                    // Deprecated in API 26
+                    vibrator.vibrate(20);
+                }
+            }
+        } catch (Exception e) {
+            Log.e("NewsAdapter", "Error providing vibration feedback", e);
+        }
+    }
+    
+    // Phương thức để cung cấp phản hồi rung khi hoàn thành nhấn giữ
+    private void provideVibrationFeedback() {
+        try {
+            Vibrator vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    // Tạo mẫu rung: rung - nghỉ - rung
+                    long[] vibrationPattern = {0, 60, 50, 60};
+                    vibrator.vibrate(VibrationEffect.createWaveform(vibrationPattern, -1));
+                } else {
+                    // Deprecated in API 26
+                    long[] vibrationPattern = {0, 60, 50, 60};
+                    vibrator.vibrate(vibrationPattern, -1);
+                }
+            }
+        } catch (Exception e) {
+            Log.e("NewsAdapter", "Error providing vibration feedback", e);
+        }
+    }
+
+    // Helper methods to get colors safely
+    private int getCardBackgroundColor() {
+        try {
+            // Define the color value directly
+            return 0xFFFFFFFF; // White color for background
+        } catch (Exception e) {
+            Log.e("NewsAdapter", "Error getting background color", e);
+            return 0xFFFFFFFF; // Same fallback
+        }
+    }
+    
+    private int getCardLongPressColor() {
+        try {
+            // Define the color value directly
+            return 0xFFE0F7FA; // Light blue color for long press (#FFE0F7FA)
+        } catch (Exception e) {
+            Log.e("NewsAdapter", "Error getting long press color", e);
+            return 0xFFE0F7FA; // Same fallback
+        }
+    }
+    
+    private int getCardSavedColor() {
+        try {
+            // Define the color value directly
+            return 0xFFBBDEFB; // Light blue color for saved state (#FFBBDEFB)
+        } catch (Exception e) {
+            Log.e("NewsAdapter", "Error getting saved color", e);
+            return 0xFFBBDEFB; // Same fallback
+        }
     }
 
     static class NewsViewHolder extends RecyclerView.ViewHolder {

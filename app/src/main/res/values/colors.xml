@@ -26,4 +26,8 @@
     <color name="mtrl_btn_text_btn_ripple_color">#087F23</color>
     <color name="colorFavourite">#FB9DA7</color>
     <color name="colorDelete">#F44336</color>
+    
+    <!-- Colors for long-press saving effect -->
+    <color name="card_long_press_color">#FFE0F7FA</color> <!-- Light blue for press effect -->
+    <color name="card_saved_color">#FFBBDEFB</color> <!-- Light blue indicating saved status -->
 </resources>
