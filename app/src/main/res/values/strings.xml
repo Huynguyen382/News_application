@@ -44,6 +44,8 @@
 
     <string name="news_image_description">News image</string>
     <string name="read_full_article">Đọc bài viết đầy đủ</string>
+    <string name="save_article">Lưu bài viết</string>
+    <string name="article_saved">Đã lưu</string>
     <string name="most_viewed_news">Khám phá</string>
     <string name="error_loading_content">Không thể tải nội dung bài viết. Vui lòng kiểm tra kết nối mạng hoặc nhấn nút \'Đọc bài đầy đủ\' để xem trên trang VnExpress.</string>
     
@@ -56,4 +58,6 @@
     <string name="app_info">Thông tin ứng dụng</string>
     <string name="logout_button">Đăng xuất</string>
     <string name="app_version">phiên bản 1.0</string>
+    <string name="saved_articles">Bài viết đã lưu</string>
+    <string name="no_saved_articles">Chưa có bài viết đã lưu</string>
 </resources>

@@ -2,6 +2,7 @@ package com.example.vnews.View;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
@@ -17,34 +18,43 @@ import androidx.appcompat.widget.SwitchCompat;
 import androidx.databinding.DataBindingUtil;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.request.RequestOptions;
 import com.example.vnews.Model.users;
 import com.example.vnews.R;
 import com.example.vnews.Repository.FirebaseRepository;
 import com.example.vnews.Utils.EyeProtectionManager;
 import com.example.vnews.databinding.ActivityProfileBinding;
+import com.google.gson.Gson;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ProfileActivity extends AppCompatActivity {
 
     private static final String TAG = "ProfileActivity";
-    private static final int FIREBASE_TIMEOUT_MS = 10000; // 10 seconds timeout
+    private static final int FIREBASE_TIMEOUT_MS = 8000; // 8 giây timeout, giảm từ 10s
+    private static final String PREF_NAME = "user_profile_cache";
+    private static final String KEY_USER_CACHE = "cached_user";
+    private static final long CACHE_VALIDITY_MS = 60 * 60 * 1000; // 1 giờ
 
     private ActivityProfileBinding binding;
     private FirebaseRepository repository;
     private Handler timeoutHandler;
+    private SharedPreferences prefs;
+    private boolean isDataLoaded = false;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_profile);
         
-        // Apply eye protection if enabled (must be done after setting content view)
-        EyeProtectionManager.applyEyeProtectionIfEnabled(this);
-        
-        // Khởi tạo repository
+        // Khởi tạo
         repository = new FirebaseRepository();
         timeoutHandler = new Handler(Looper.getMainLooper());
+        prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        
+        // Apply eye protection if enabled
+        EyeProtectionManager.applyEyeProtectionIfEnabled(this);
         
         // Thiết lập toolbar
         setSupportActionBar(binding.toolbar);
@@ -60,11 +70,60 @@ public class ProfileActivity extends AppCompatActivity {
         // Thiết lập BottomNavigationView
         setupBottomNavigation();
         
-        // Thiết lập nút thử lại
-        binding.btnRetry.setOnClickListener(v -> loadUserProfile());
+        // Hiển thị dữ liệu từ cache ngay lập tức (nếu có)
+        displayCachedUserData();
         
-        // Tải thông tin người dùng
-        loadUserProfile();
+        // Thiết lập nút thử lại
+        binding.btnRetry.setOnClickListener(v -> {
+            binding.offlineLayout.setVisibility(View.GONE);
+            binding.profileContent.setVisibility(View.GONE);
+            binding.progressBar.setVisibility(View.VISIBLE);
+            loadUserProfile();
+        });
+        
+        // Thiết lập nút xem bài viết đã lưu
+        binding.savedArticlesLayout.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileActivity.this, SavedArticlesActivity.class);
+            startActivity(intent);
+        });
+        
+        // Thiết lập nút đăng xuất - luôn thiết lập dù có đăng nhập hay không
+        binding.buttonLogout.setOnClickListener(v -> {
+            // Xóa cache khi đăng xuất
+            clearUserCache();
+            
+            // Đăng xuất và quay lại màn hình chính
+            repository.logoutUser();
+            Toast.makeText(this, "Đã đăng xuất", Toast.LENGTH_SHORT).show();
+            
+            // Chuyển hướng về HomeActivity
+            Intent intent = new Intent(ProfileActivity.this, HomeActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+        });
+        
+        // Tải thông tin người dùng từ Firebase (chỉ tải khi không có cache hoặc cache hết hạn)
+        if (!isDataLoaded || isCacheExpired()) {
+            loadUserProfile();
+        }
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        
+        // Kiểm tra xem người dùng còn đăng nhập không (trường hợp đăng xuất từ màn hình khác)
+        if (!repository.isUserLoggedIn() && isDataLoaded) {
+            // Nếu đã đăng xuất và đang hiển thị dữ liệu, chuyển đến màn hình login
+            Toast.makeText(this, "Phiên đăng nhập đã hết hạn", Toast.LENGTH_SHORT).show();
+            
+            // Chuyển hướng về HomeActivity
+            Intent intent = new Intent(ProfileActivity.this, HomeActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+        }
     }
     
     private void setupEyeProtectionToggle() {
@@ -104,24 +163,69 @@ public class ProfileActivity extends AppCompatActivity {
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
     
+    private void displayCachedUserData() {
+        // Hiển thị thông tin từ cache nếu có
+        String cachedUserJson = prefs.getString(KEY_USER_CACHE, null);
+        
+        if (cachedUserJson != null) {
+            try {
+                Gson gson = new Gson();
+                users user = gson.fromJson(cachedUserJson, users.class);
+                
+                if (user != null) {
+                    updateUserProfileUI(user, true);
+                    isDataLoaded = true;
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error parsing cached user data", e);
+            }
+        }
+    }
+    
+    private boolean isCacheExpired() {
+        long lastCacheTime = prefs.getLong("last_cache_time", 0);
+        return System.currentTimeMillis() - lastCacheTime > CACHE_VALIDITY_MS;
+    }
+    
+    private void cacheUserData(users user) {
+        if (user == null) return;
+        
+        try {
+            Gson gson = new Gson();
+            String userJson = gson.toJson(user);
+            
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString(KEY_USER_CACHE, userJson);
+            editor.putLong("last_cache_time", System.currentTimeMillis());
+            editor.apply();
+        } catch (Exception e) {
+            Log.e(TAG, "Error caching user data", e);
+        }
+    }
+    
     private void loadUserProfile() {
         // Clear any pending timeout callbacks
         timeoutHandler.removeCallbacksAndMessages(null);
         
         if (!isNetworkAvailable()) {
             Log.d(TAG, "Network is not available, showing offline message");
-            showOfflineMessage();
+            if (!isDataLoaded) {
+                showOfflineMessage();
+            }
             return;
         }
         
         if (repository.isUserLoggedIn()) {
             String userId = repository.getCurrentUserId();
             
-            // Ẩn thông báo offline và nút thử lại
+            // Ẩn thông báo offline
             binding.offlineLayout.setVisibility(View.GONE);
             
-            // Hiển thị trạng thái đang tải
-            binding.progressBar.setVisibility(View.VISIBLE);
+            // Hiển thị trạng thái đang tải (chỉ khi chưa có dữ liệu)
+            if (!isDataLoaded) {
+                binding.profileContent.setVisibility(View.GONE);
+                binding.progressBar.setVisibility(View.VISIBLE);
+            }
             
             // Set a flag to track if callback has been called
             final AtomicBoolean callbackCalled = new AtomicBoolean(false);
@@ -131,8 +235,10 @@ public class ProfileActivity extends AppCompatActivity {
                 // Only show timeout if callback hasn't been called yet
                 if (callbackCalled.compareAndSet(false, true)) {
                     Log.d(TAG, "Firebase operation timed out");
-                    binding.progressBar.setVisibility(View.GONE);
-                    showOfflineMessage();
+                    if (!isDataLoaded) {
+                        binding.progressBar.setVisibility(View.GONE);
+                        showOfflineMessage();
+                    }
                 }
             }, FIREBASE_TIMEOUT_MS);
             
@@ -150,47 +256,10 @@ public class ProfileActivity extends AppCompatActivity {
                             
                             if (user != null) {
                                 Log.d(TAG, "User profile loaded successfully");
-                                
-                                // Hiển thị email người dùng thay vì tên người dùng
-                                String displayName = user.getEmail(); // Sử dụng email làm tên hiển thị
-                                if (displayName == null || displayName.isEmpty()) {
-                                    // Fallback to username if email is null/empty
-                                    displayName = user.getUsername();
-                                }
-                                binding.textFullName.setText(displayName);
-                                
-                                // Hiện thị email ở textEmail
-                                binding.textEmail.setText(user.getEmail());
-                                
-                                // Check if the user is an offline placeholder
-                                boolean isOfflinePlaceholder = user.getUsername() != null && 
-                                    user.getUsername().contains("offline");
-                                if (isOfflinePlaceholder) {
-                                    // Show a small offline indicator if using placeholder data
-                                    View offlineIndicator = binding.offlineIndicator;
-                                    if (offlineIndicator != null) {
-                                        offlineIndicator.setVisibility(View.VISIBLE);
-                                    }
-                                    // Also log that we're using placeholder data
-                                    Log.d(TAG, "Using offline placeholder data for user");
-                                } else {
-                                    // Hide the offline indicator
-                                    View offlineIndicator = binding.offlineIndicator;
-                                    if (offlineIndicator != null) {
-                                        offlineIndicator.setVisibility(View.GONE);
-                                    }
-                                }
-                                
-                                // Tải avatar nếu có
-                                if (user.getAvtUrl() != null && !user.getAvtUrl().isEmpty()) {
-                                    Glide.with(ProfileActivity.this)
-                                            .load(user.getAvtUrl())
-                                            .placeholder(R.drawable.default_avatar)
-                                            .error(R.drawable.default_avatar)
-                                            .circleCrop()
-                                            .into(binding.imageAvatar);
-                                }
-                            } else {
+                                updateUserProfileUI(user, false);
+                                cacheUserData(user);
+                                isDataLoaded = true;
+                            } else if (!isDataLoaded) {
                                 // User is null, possible offline scenario
                                 Log.d(TAG, "User profile is null");
                                 showOfflineMessage();
@@ -209,39 +278,99 @@ public class ProfileActivity extends AppCompatActivity {
                         Log.e(TAG, "Error loading user profile", e);
                         
                         runOnUiThread(() -> {
-                            binding.progressBar.setVisibility(View.GONE);
-                            
-                            // Kiểm tra nếu lỗi do offline
-                            if (e.getMessage() != null && e.getMessage().contains("offline")) {
-                                showOfflineMessage();
-                            } else {
-                                Toast.makeText(ProfileActivity.this, 
-                                        "Lỗi khi tải thông tin: " + e.getMessage(), 
-                                        Toast.LENGTH_SHORT).show();
+                            if (!isDataLoaded) {
+                                binding.progressBar.setVisibility(View.GONE);
+                                
+                                // Kiểm tra nếu lỗi do offline
+                                if (e.getMessage() != null && e.getMessage().contains("offline")) {
+                                    showOfflineMessage();
+                                } else {
+                                    Toast.makeText(ProfileActivity.this, 
+                                            "Lỗi khi tải thông tin: " + e.getMessage(), 
+                                            Toast.LENGTH_SHORT).show();
+                                }
                             }
                         });
                     }
                 }
             });
+        } else if (!isDataLoaded) {
+            showOfflineMessage();
             
-            // Thiết lập nút đăng xuất
-            binding.buttonLogout.setOnClickListener(v -> {
-                // Đăng xuất và quay lại màn hình chính
-                repository.logoutUser();
-                Toast.makeText(this, "Đã đăng xuất", Toast.LENGTH_SHORT).show();
-                
-                // Chuyển hướng về HomeActivity
-                Intent intent = new Intent(ProfileActivity.this, HomeActivity.class);
-                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            binding.emptyProfileMessage.setText("Vui lòng đăng nhập để xem thông tin tài khoản");
+            binding.btnRetry.setText("Đăng nhập");
+            binding.btnRetry.setOnClickListener(v -> {
+                Intent intent = new Intent(ProfileActivity.this, LoginActivity.class);
                 startActivity(intent);
-                finish();
             });
         }
+    }
+    
+    private void updateUserProfileUI(users user, boolean fromCache) {
+        // Hiển thị layout nội dung
+        binding.profileContent.setVisibility(View.VISIBLE);
+        
+        // Hiển thị email người dùng thay vì tên người dùng
+        String displayName = user.getEmail(); // Sử dụng email làm tên hiển thị
+        if (displayName == null || displayName.isEmpty()) {
+            // Fallback to username if email is null/empty
+            displayName = user.getUsername();
+        }
+        binding.textFullName.setText(displayName);
+        
+        // Hiện thị email ở textEmail
+        binding.textEmail.setText(user.getEmail());
+        
+        // Check if the user is an offline placeholder
+        boolean isOfflinePlaceholder = user.getUsername() != null && 
+            user.getUsername().contains("offline");
+        
+        // Chỉ hiển thị chỉ báo offline nếu thực sự đang offline
+        if (isOfflinePlaceholder && !isNetworkAvailable()) {
+            View offlineIndicator = binding.offlineIndicator;
+            if (offlineIndicator != null) {
+                offlineIndicator.setVisibility(View.VISIBLE);
+            }
+        } else {
+            View offlineIndicator = binding.offlineIndicator;
+            if (offlineIndicator != null) {
+                offlineIndicator.setVisibility(View.GONE);
+            }
+        }
+        
+        // Tải avatar nếu có
+        if (user.getAvtUrl() != null && !user.getAvtUrl().isEmpty()) {
+            RequestOptions options = new RequestOptions()
+                .placeholder(R.drawable.default_avatar)
+                .error(R.drawable.default_avatar)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .circleCrop();
+            
+            Glide.with(this)
+                .load(user.getAvtUrl())
+                .apply(options)
+                .into(binding.imageAvatar);
+        } else {
+            binding.imageAvatar.setImageResource(R.drawable.default_avatar);
+        }
+        
+        // Hiển thị một chỉ báo "cached" nếu dữ liệu đến từ cache
+        if (fromCache && !isNetworkAvailable()) {
+            Toast.makeText(this, "Đang hiển thị dữ liệu đã lưu", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void clearUserCache() {
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.remove(KEY_USER_CACHE);
+        editor.apply();
+        isDataLoaded = false;
     }
     
     private void showOfflineMessage() {
         binding.progressBar.setVisibility(View.GONE);
         binding.offlineLayout.setVisibility(View.VISIBLE);
+        binding.profileContent.setVisibility(View.GONE);
     }
     
     @Override

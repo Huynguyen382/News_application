@@ -17,6 +17,7 @@ import androidx.databinding.DataBindingUtil;
 
 import com.bumptech.glide.Glide;
 import com.example.vnews.R;
+import com.example.vnews.Repository.FirebaseRepository;
 import com.example.vnews.Utils.ArticleScraper;
 import com.example.vnews.Utils.EyeProtectionManager;
 import com.example.vnews.databinding.ActivityNewsDetailBinding;
@@ -35,11 +36,18 @@ public class NewsDetailActivity extends AppCompatActivity {
     private static final String TAG = "NewsDetailActivity";
     private ActivityNewsDetailBinding binding;
     private final Executor executor = Executors.newSingleThreadExecutor();
+    private FirebaseRepository repository;
+    private String articleUrl;
+    private String articleTitle;
+    private String articleImageUrl;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_news_detail);
+        
+        // Khởi tạo repository
+        repository = new FirebaseRepository();
         
         // Apply eye protection if it's enabled
         EyeProtectionManager.applyEyeProtectionIfEnabled(this);
@@ -57,15 +65,15 @@ public class NewsDetailActivity extends AppCompatActivity {
         // Lấy dữ liệu từ Intent
         Intent intent = getIntent();
         if (intent != null) {
-            String title = intent.getStringExtra("article_title");
-            String url = intent.getStringExtra("article_url");
-            String imageUrl = intent.getStringExtra("article_image");
+            articleTitle = intent.getStringExtra("article_title");
+            articleUrl = intent.getStringExtra("article_url");
+            articleImageUrl = intent.getStringExtra("article_image");
             String description = intent.getStringExtra("article_description");
             String pubDate = intent.getStringExtra("article_pubDate");
             
             // Hiển thị tiêu đề
-            if (title != null) {
-                binding.newsTitle.setText(title);
+            if (articleTitle != null) {
+                binding.newsTitle.setText(articleTitle);
                 // Đặt tiêu đề cho thanh công cụ
                 if (getSupportActionBar() != null) {
                     getSupportActionBar().setTitle("Tin tức");
@@ -80,9 +88,9 @@ public class NewsDetailActivity extends AppCompatActivity {
             }
             
             // Hiển thị hình ảnh chính
-            if (imageUrl != null && !imageUrl.isEmpty()) {
+            if (articleImageUrl != null && !articleImageUrl.isEmpty()) {
                 Glide.with(this)
-                        .load(imageUrl)
+                        .load(articleImageUrl)
                         .placeholder(R.drawable.placeholder_image)
                         .error(R.drawable.placeholder_image)
                         .into(binding.newsImage);
@@ -95,15 +103,21 @@ public class NewsDetailActivity extends AppCompatActivity {
             binding.webView.setVisibility(View.GONE);
             
             // Tải nội dung đầy đủ nếu có URL
-            if (url != null && !url.isEmpty()) {
+            if (articleUrl != null && !articleUrl.isEmpty()) {
                 // Tải nội dung bằng JSoup trong luồng nền
-                loadFullArticleContent(url);
+                loadFullArticleContent(articleUrl);
                 
                 // Thiết lập nút để mở bài viết đầy đủ trong trình duyệt
                 binding.readMoreButton.setOnClickListener(v -> {
-                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(articleUrl));
                     startActivity(browserIntent);
                 });
+                
+                // Thiết lập nút lưu bài viết
+                binding.saveArticleButton.setOnClickListener(v -> saveArticle());
+                
+                // Kiểm tra xem bài viết đã được lưu hay chưa
+                checkIfArticleIsSaved();
             } else {
                 // Nếu không có URL, chỉ hiển thị mô tả từ RSS
                 binding.progressBar.setVisibility(View.GONE);
@@ -120,8 +134,79 @@ public class NewsDetailActivity extends AppCompatActivity {
                 }
                 
                 binding.readMoreButton.setVisibility(View.GONE);
+                binding.saveArticleButton.setVisibility(View.GONE);
             }
         }
+    }
+    
+    /**
+     * Kiểm tra xem bài viết đã được lưu hay chưa
+     */
+    private void checkIfArticleIsSaved() {
+        if (!repository.isUserLoggedIn() || articleUrl == null) {
+            // Nếu người dùng chưa đăng nhập hoặc không có URL, không cần kiểm tra
+            binding.saveArticleButton.setText(R.string.save_article);
+            return;
+        }
+        
+        String userId = repository.getCurrentUserId();
+        repository.isArticleSaved(userId, articleUrl, new FirebaseRepository.FirestoreCallback<Boolean>() {
+            @Override
+            public void onCallback(Boolean isSaved) {
+                runOnUiThread(() -> {
+                    if (isSaved) {
+                        binding.saveArticleButton.setText(R.string.article_saved);
+                        binding.saveArticleButton.setEnabled(false);
+                    } else {
+                        binding.saveArticleButton.setText(R.string.save_article);
+                        binding.saveArticleButton.setEnabled(true);
+                    }
+                });
+            }
+            
+            @Override
+            public void onError(Exception e) {
+                runOnUiThread(() -> {
+                    binding.saveArticleButton.setText(R.string.save_article);
+                    Log.e(TAG, "Error checking if article is saved", e);
+                });
+            }
+        });
+    }
+    
+    /**
+     * Lưu bài viết vào danh sách đã lưu
+     */
+    private void saveArticle() {
+        if (!repository.isUserLoggedIn()) {
+            Toast.makeText(this, "Vui lòng đăng nhập để lưu bài viết", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        if (articleUrl == null || articleUrl.isEmpty()) {
+            Toast.makeText(this, "Không thể lưu bài viết này", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        String userId = repository.getCurrentUserId();
+        repository.saveArticle(userId, articleUrl, new FirebaseRepository.FirestoreCallback<String>() {
+            @Override
+            public void onCallback(String result) {
+                runOnUiThread(() -> {
+                    Toast.makeText(NewsDetailActivity.this, "Đã lưu bài viết thành công", Toast.LENGTH_SHORT).show();
+                    binding.saveArticleButton.setText(R.string.article_saved);
+                    binding.saveArticleButton.setEnabled(false);
+                });
+            }
+            
+            @Override
+            public void onError(Exception e) {
+                runOnUiThread(() -> {
+                    Toast.makeText(NewsDetailActivity.this, "Lỗi khi lưu bài viết: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Log.e(TAG, "Error saving article", e);
+                });
+            }
+        });
     }
     
     /**

@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 public class FirebaseRepository {
     private static final String TAG = "FirebaseRepository";
@@ -447,125 +448,311 @@ public class FirebaseRepository {
      * Save article
      */
     public void saveArticle(String userId, String articleId, final FirestoreCallback<String> callback) {
-        DocumentReference docRef = db.collection(SAVED_ARTICLES_COLLECTION).document();
-        String id = docRef.getId();
+        if (userId == null || articleId == null) {
+            callback.onError(new Exception("User ID hoặc Article ID không được để trống"));
+            return;
+        }
         
-        saved_articles savedArticle = new saved_articles(id, articleId, userId, System.currentTimeMillis());
-        
-        docRef.set(savedArticle)
-                .addOnSuccessListener(aVoid -> callback.onCallback(id))
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error saving article", e);
-                    callback.onError(e);
-                });
+        try {
+            DocumentReference docRef = db.collection(SAVED_ARTICLES_COLLECTION).document();
+            String id = docRef.getId();
+            
+            saved_articles savedArticle = new saved_articles(id, articleId, userId, System.currentTimeMillis());
+            
+            docRef.set(savedArticle)
+                    .addOnSuccessListener(aVoid -> callback.onCallback(id))
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Error saving article", e);
+                        callback.onError(e);
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Error in saveArticle", e);
+            callback.onError(e);
+        }
     }
     
     /**
      * Check if article is saved
      */
     public void isArticleSaved(String userId, String articleId, final FirestoreCallback<Boolean> callback) {
-        db.collection(SAVED_ARTICLES_COLLECTION)
-                .whereEqualTo("userId", userId)
-                .whereEqualTo("articleId", articleId)
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    boolean isSaved = !queryDocumentSnapshots.isEmpty();
-                    callback.onCallback(isSaved);
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error checking if article is saved", e);
-                    callback.onError(e);
-                });
+        if (userId == null || articleId == null) {
+            callback.onCallback(false);
+            return;
+        }
+        
+        try {
+            db.collection(SAVED_ARTICLES_COLLECTION)
+                    .whereEqualTo("userId", userId)
+                    .whereEqualTo("articleId", articleId)
+                    .get()
+                    .addOnSuccessListener(queryDocumentSnapshots -> {
+                        boolean isSaved = !queryDocumentSnapshots.isEmpty();
+                        callback.onCallback(isSaved);
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Error checking if article is saved", e);
+                        callback.onCallback(false);
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Error in isArticleSaved", e);
+            callback.onCallback(false);
+        }
     }
     
     /**
      * Get saved articles for user
      */
     public void getSavedArticles(String userId, final FirestoreCallback<List<articles>> callback) {
-        db.collection(SAVED_ARTICLES_COLLECTION)
-                .whereEqualTo("userId", userId)
-                .orderBy("savedAt", Query.Direction.DESCENDING)
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    List<String> articleIds = new ArrayList<>();
-                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
-                        saved_articles savedArticle = document.toObject(saved_articles.class);
-                        articleIds.add(savedArticle.getArticleId());
-                    }
-                    
-                    if (articleIds.isEmpty()) {
-                        callback.onCallback(new ArrayList<>());
-                        return;
-                    }
-                    
-                    // Get the articles using the ids
-                    getArticlesByIds(articleIds, callback);
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error getting saved articles", e);
-                    callback.onError(e);
-                });
+        if (userId == null) {
+            callback.onCallback(new ArrayList<>());
+            return;
+        }
+        
+        try {
+            db.collection(SAVED_ARTICLES_COLLECTION)
+                    .whereEqualTo("userId", userId)
+                    .orderBy("savedAt", Query.Direction.DESCENDING)
+                    .get()
+                    .addOnSuccessListener(queryDocumentSnapshots -> {
+                        List<String> articleIds = new ArrayList<>();
+                        for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                            saved_articles savedArticle = document.toObject(saved_articles.class);
+                            articleIds.add(savedArticle.getArticleId());
+                        }
+                        
+                        if (articleIds.isEmpty()) {
+                            callback.onCallback(new ArrayList<>());
+                            return;
+                        }
+                        
+                        // Get the articles using the ids
+                        getArticlesByIds(articleIds, callback);
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Error getting saved articles", e);
+                        callback.onError(new Exception("Không thể tải bài viết đã lưu. Lỗi: " + e.getMessage()));
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Error in getSavedArticles", e);
+            callback.onCallback(new ArrayList<>());
+        }
     }
     
     /**
      * Get articles by list of ids
      */
     private void getArticlesByIds(List<String> articleIds, final FirestoreCallback<List<articles>> callback) {
+        if (articleIds == null || articleIds.isEmpty()) {
+            callback.onCallback(new ArrayList<>());
+            return;
+        }
+        
         List<articles> articlesList = new ArrayList<>();
         final int[] count = {0};
         
-        for (String articleId : articleIds) {
-            db.collection(ARTICLES_COLLECTION)
-                    .document(articleId)
-                    .get()
-                    .addOnSuccessListener(documentSnapshot -> {
-                        if (documentSnapshot.exists()) {
-                            articles article = documentSnapshot.toObject(articles.class);
-                            articlesList.add(article);
-                        }
-                        
-                        count[0]++;
-                        if (count[0] == articleIds.size()) {
-                            callback.onCallback(articlesList);
-                        }
-                    })
-                    .addOnFailureListener(e -> {
-                        Log.e(TAG, "Error getting article by id", e);
-                        count[0]++;
-                        if (count[0] == articleIds.size()) {
-                            callback.onCallback(articlesList);
-                        }
-                    });
+        try {
+            for (String articleId : articleIds) {
+                // Dùng URL để tạo bài viết giả
+                if (articleId.startsWith("http")) {
+                    articles article = createArticleFromUrl(articleId);
+                    articlesList.add(article);
+                    count[0]++;
+                    
+                    if (count[0] == articleIds.size()) {
+                        callback.onCallback(articlesList);
+                    }
+                    continue;
+                }
+                
+                db.collection(ARTICLES_COLLECTION)
+                        .document(articleId)
+                        .get()
+                        .addOnSuccessListener(documentSnapshot -> {
+                            if (documentSnapshot.exists()) {
+                                articles article = documentSnapshot.toObject(articles.class);
+                                articlesList.add(article);
+                            } else {
+                                // Nếu không tìm thấy, thử tạo bài viết giả từ URL
+                                articles article = createArticleFromUrl(articleId);
+                                if (article != null) {
+                                    articlesList.add(article);
+                                }
+                            }
+                            
+                            count[0]++;
+                            if (count[0] == articleIds.size()) {
+                                callback.onCallback(articlesList);
+                            }
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Error getting article by id", e);
+                            
+                            // Nếu lỗi, thử tạo bài viết giả từ URL
+                            articles article = createArticleFromUrl(articleId);
+                            if (article != null) {
+                                articlesList.add(article);
+                            }
+                            
+                            count[0]++;
+                            if (count[0] == articleIds.size()) {
+                                callback.onCallback(articlesList);
+                            }
+                        });
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in getArticlesByIds", e);
+            callback.onCallback(articlesList);
         }
+    }
+    
+    /**
+     * Tạo bài viết giả từ URL
+     */
+    private articles createArticleFromUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return null;
+        }
+        
+        articles article = new articles();
+        article.setId(url);
+        
+        // Parse URL để lấy tiêu đề
+        String title = "";
+        String imageUrl = "";
+        String domain = "";
+        
+        try {
+            // Phân tích URL để lấy tên miền
+            String[] urlParts = url.split("//");
+            if (urlParts.length > 1) {
+                String[] domainParts = urlParts[1].split("/");
+                domain = domainParts[0];
+            }
+            
+            // Lấy phần cuối của URL làm tiêu đề
+            String[] segments = url.split("/");
+            String lastSegment = segments[segments.length - 1];
+            
+            // Loại bỏ phần mở rộng file và tham số truy vấn nếu có
+            if (lastSegment.contains(".")) {
+                lastSegment = lastSegment.substring(0, lastSegment.lastIndexOf("."));
+            }
+            if (lastSegment.contains("?")) {
+                lastSegment = lastSegment.substring(0, lastSegment.indexOf("?"));
+            }
+            
+            // Thay thế dấu gạch ngang và dấu gạch dưới bằng khoảng trắng
+            lastSegment = lastSegment.replace("-", " ").replace("_", " ");
+            
+            // Nếu tiêu đề chứa ký tự mã hóa URL, decode nó với UTF-8
+            if (lastSegment.contains("%")) {
+                try {
+                    lastSegment = java.net.URLDecoder.decode(lastSegment, "UTF-8");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error decoding URL segment", e);
+                }
+            }
+            
+            // Viết hoa chữ cái đầu mỗi từ và giới hạn độ dài
+            String[] words = lastSegment.split(" ");
+            StringBuilder titleBuilder = new StringBuilder();
+            for (String word : words) {
+                if (!word.isEmpty()) {
+                    // Xử lý đặc biệt cho tiếng Việt
+                    if (word.length() > 1) {
+                        // Lấy ký tự đầu tiên để viết hoa
+                        char firstChar = word.charAt(0);
+                        String restOfWord = word.substring(1);
+                        
+                        // Xử lý cho UTF-8
+                        String uppercaseChar = String.valueOf(firstChar).toUpperCase(Locale.forLanguageTag("vi-VN"));
+                        String lowercaseRest = restOfWord.toLowerCase(Locale.forLanguageTag("vi-VN"));
+                        
+                        titleBuilder.append(uppercaseChar)
+                                .append(lowercaseRest)
+                                .append(" ");
+                    } else {
+                        titleBuilder.append(word.toUpperCase(Locale.forLanguageTag("vi-VN")))
+                                .append(" ");
+                    }
+                }
+            }
+            title = titleBuilder.toString().trim();
+            
+            // Giới hạn độ dài tiêu đề
+            if (title.length() > 100) {
+                title = title.substring(0, 97) + "...";
+            }
+            
+            // Chọn hình ảnh phù hợp dựa vào tên miền
+            if (domain.contains("vnexpress")) {
+                imageUrl = "https://s1.vnecdn.net/vnexpress/restruct/i/v630/v2_2019/pc/graphics/logo.svg";
+            } else if (domain.contains("tuoitre")) {
+                imageUrl = "https://dangkyxettuyennghe.tuoitre.vn/img/logo.png";
+            } else if (domain.contains("thanhnien")) {
+                imageUrl = "https://static.thanhnien.vn/v2/App_Themes/images/logo-2019.png";
+            } else if (domain.contains("dantri")) {
+                imageUrl = "https://cdnweb.dantri.com.vn/dist/static-avatar.1-0-1.3a93b5.png";
+            } else {
+                // Hình ảnh mặc định cho các trang web khác
+                imageUrl = "https://cdn-icons-png.flaticon.com/512/21/21601.png";
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing URL", e);
+            title = "Bài viết từ " + (domain.isEmpty() ? url : domain);
+        }
+        
+        if (title.isEmpty()) {
+            title = "Bài viết đã lưu";
+        }
+        
+        article.setTitle(title);
+        article.setContent("Nội dung bài viết đã lưu từ " + (domain.isEmpty() ? url : domain));
+        article.setPublishedAt(String.valueOf(System.currentTimeMillis()));
+        article.setAuthor(domain);
+        article.setImgUrl(imageUrl);
+        
+        return article;
     }
     
     /**
      * Unsave article
      */
     public void unsaveArticle(String userId, String articleId, final FirestoreCallback<Void> callback) {
-        db.collection(SAVED_ARTICLES_COLLECTION)
-                .whereEqualTo("userId", userId)
-                .whereEqualTo("articleId", articleId)
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (!queryDocumentSnapshots.isEmpty()) {
-                        String savedArticleId = queryDocumentSnapshots.getDocuments().get(0).getId();
-                        db.collection(SAVED_ARTICLES_COLLECTION)
-                                .document(savedArticleId)
-                                .delete()
-                                .addOnSuccessListener(aVoid -> callback.onCallback(null))
-                                .addOnFailureListener(e -> {
-                                    Log.e(TAG, "Error unsaving article", e);
-                                    callback.onError(e);
-                                });
-                    } else {
+        if (userId == null || articleId == null) {
+            callback.onCallback(null);
+            return;
+        }
+        
+        try {
+            db.collection(SAVED_ARTICLES_COLLECTION)
+                    .whereEqualTo("userId", userId)
+                    .whereEqualTo("articleId", articleId)
+                    .get()
+                    .addOnSuccessListener(queryDocumentSnapshots -> {
+                        if (!queryDocumentSnapshots.isEmpty()) {
+                            String savedArticleId = queryDocumentSnapshots.getDocuments().get(0).getId();
+                            db.collection(SAVED_ARTICLES_COLLECTION)
+                                    .document(savedArticleId)
+                                    .delete()
+                                    .addOnSuccessListener(aVoid -> callback.onCallback(null))
+                                    .addOnFailureListener(e -> {
+                                        Log.e(TAG, "Error unsaving article", e);
+                                        callback.onCallback(null);
+                                    });
+                        } else {
+                            callback.onCallback(null);
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Error finding saved article", e);
                         callback.onCallback(null);
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error finding saved article", e);
-                    callback.onError(e);
-                });
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Error in unsaveArticle", e);
+            callback.onCallback(null);
+        }
     }
     
     // ===== CATEGORIES METHODS =====

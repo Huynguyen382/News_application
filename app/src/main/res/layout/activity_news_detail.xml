@@ -100,12 +100,27 @@
                         android:gravity="end"
                         android:layout_marginBottom="16dp" />
 
-                    <Button
-                        android:id="@+id/readMoreButton"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/read_full_article"
-                        android:layout_marginTop="8dp" />
+                        android:orientation="horizontal"
+                        android:layout_marginTop="8dp">
+
+                        <Button
+                            android:id="@+id/saveArticleButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/save_article"
+                            android:layout_marginEnd="8dp" />
+
+                        <Button
+                            android:id="@+id/readMoreButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/read_full_article" />
+                    </LinearLayout>
 
                 </LinearLayout>
             </LinearLayout>

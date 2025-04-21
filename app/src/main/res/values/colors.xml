@@ -21,4 +21,9 @@
     <color name="card_background">@color/white</color>
     <color name="text_color">@color/black</color>
     <color name="secondary_text_color">@color/gray</color>
+    
+    <color name="mtrl_btn_transparent_bg_color">#00000000</color>
+    <color name="mtrl_btn_text_btn_ripple_color">#087F23</color>
+    <color name="colorFavourite">#FB9DA7</color>
+    <color name="colorDelete">#F44336</color>
 </resources>
