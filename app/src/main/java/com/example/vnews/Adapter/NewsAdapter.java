@@ -90,12 +90,30 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.NewsViewHolder
         // Hiển thị tiêu đề - đảm bảo không mất dấu tiếng Việt
         String title = news.getTitle();
         if (title != null) {
+            // Loại bỏ dãy số ở cuối nếu có
+            title = title.replaceAll("\\s*\\d+$", "").trim();
+            
             // Kiểm tra xem có cần chuyển đổi mã hóa không
             if (!containsVietnameseCharacters(title) && title.matches(".*[\\u00C0-\\u00FF].*")) {
                 try {
-                    // Thử chuyển từ ISO-8859-1 sang UTF-8
-                    byte[] bytes = title.getBytes(StandardCharsets.ISO_8859_1);
-                    title = new String(bytes, StandardCharsets.UTF_8);
+                    // Kiểm tra nếu có byte không hợp lệ trong UTF-8
+                    byte[] bytesUTF8 = title.getBytes(StandardCharsets.UTF_8);
+                    String utf8Check = new String(bytesUTF8, StandardCharsets.UTF_8);
+                    
+                    if (!title.equals(utf8Check)) {
+                        // Thử chuyển từ ISO-8859-1 sang UTF-8
+                        byte[] bytes = title.getBytes(StandardCharsets.ISO_8859_1);
+                        title = new String(bytes, StandardCharsets.UTF_8);
+                        
+                        // Nếu vẫn không có dấu, thử Windows-1252
+                        if (!containsVietnameseCharacters(title)) {
+                            byte[] bytesWin = title.getBytes("windows-1252");
+                            String winTitle = new String(bytesWin, StandardCharsets.UTF_8);
+                            if (containsVietnameseCharacters(winTitle)) {
+                                title = winTitle;
+                            }
+                        }
+                    }
                 } catch (Exception e) {
                     Log.e("NewsAdapter", "Error converting title: " + title, e);
                 }
@@ -109,9 +127,24 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.NewsViewHolder
             // Kiểm tra xem có cần chuyển đổi mã hóa không
             if (!containsVietnameseCharacters(description) && description.matches(".*[\\u00C0-\\u00FF].*")) {
                 try {
-                    // Thử chuyển từ ISO-8859-1 sang UTF-8
-                    byte[] bytes = description.getBytes(StandardCharsets.ISO_8859_1);
-                    description = new String(bytes, StandardCharsets.UTF_8);
+                    // Kiểm tra nếu có byte không hợp lệ trong UTF-8
+                    byte[] bytesUTF8 = description.getBytes(StandardCharsets.UTF_8);
+                    String utf8Check = new String(bytesUTF8, StandardCharsets.UTF_8);
+                    
+                    if (!description.equals(utf8Check)) {
+                        // Thử chuyển từ ISO-8859-1 sang UTF-8
+                        byte[] bytes = description.getBytes(StandardCharsets.ISO_8859_1);
+                        description = new String(bytes, StandardCharsets.UTF_8);
+                        
+                        // Nếu vẫn không có dấu, thử Windows-1252
+                        if (!containsVietnameseCharacters(description)) {
+                            byte[] bytesWin = description.getBytes("windows-1252");
+                            String winDesc = new String(bytesWin, StandardCharsets.UTF_8);
+                            if (containsVietnameseCharacters(winDesc)) {
+                                description = winDesc;
+                            }
+                        }
+                    }
                 } catch (Exception e) {
                     Log.e("NewsAdapter", "Error converting description: " + description, e);
                 }
@@ -123,17 +156,48 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.NewsViewHolder
         holder.newsDate.setText(news.getPubDate());
         
         // Load image using Glide with improved settings
-        if (news.getImageUrl() != null && !news.getImageUrl().isEmpty()) {
+        String imageUrl = news.getImageUrl();
+        if (imageUrl == null || imageUrl.isEmpty()) {
+            // Đặt một URL mặc định để tránh lỗi null
+            imageUrl = "https://placeholder.com/wp-content/uploads/2018/10/placeholder.png";
+            Log.d("NewsAdapter", "Sử dụng URL placeholder cho item có tiêu đề: " + news.getTitle());
+        }
+        
+        try {
+            // Log URL gốc để debug
+            Log.d("NewsAdapter", "Original image URL: " + imageUrl);
+            
+            // Đảm bảo URL bắt đầu bằng http hoặc https
+            if (!imageUrl.startsWith("http")) {
+                imageUrl = "https:" + imageUrl;
+            }
+            
+            // Loại bỏ các ký tự không hợp lệ trong URL
+            if (imageUrl.contains(" ")) {
+                imageUrl = imageUrl.replaceAll(" ", "%20");
+            }
+            
+            Log.d("NewsAdapter", "Final image URL: " + imageUrl);
+            
+            // Sử dụng RequestOptions để cấu hình Glide
             RequestOptions options = new RequestOptions()
                     .placeholder(R.drawable.placeholder_image)
-                    .error(R.drawable.placeholder_image);
+                    .error(R.drawable.placeholder_image)
+                    .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.ALL)
+                    .timeout(15000) // 15 giây timeout
+                    .fallback(R.drawable.placeholder_image) // Fallback khi URL là null
+                    .dontTransform() // Không biến đổi hình ảnh, tăng khả năng load thành công
+                    .dontAnimate(); // Không animation, giảm lỗi
             
+            // Tải hình ảnh với Glide - sử dụng cả asGif() để hỗ trợ GIF
             Glide.with(context.getApplicationContext())
-                    .load(news.getImageUrl())
+                    .load(imageUrl)
                     .apply(options)
                     .transition(DrawableTransitionOptions.withCrossFade())
                     .into(holder.newsImage);
-        } else {
+            
+        } catch (Exception e) {
+            Log.e("NewsAdapter", "Error loading image: " + imageUrl, e);
             holder.newsImage.setImageResource(R.drawable.placeholder_image);
         }
         
@@ -232,9 +296,13 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.NewsViewHolder
         notifyDataSetChanged();
     }
 
+    /**
+     * Kiểm tra chuỗi có chứa ký tự tiếng Việt không
+     */
     private boolean containsVietnameseCharacters(String text) {
         if (text == null) return false;
-        return text.matches(".*[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđĐÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸ].*");
+        // Mở rộng regex để bắt nhiều ký tự tiếng Việt hơn, bao gồm cả chữ hoa
+        return text.matches(".*[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ].*");
     }
 
     static class NewsViewHolder extends RecyclerView.ViewHolder {

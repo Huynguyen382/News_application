@@ -125,31 +125,84 @@ public class SavedArticlesActivity extends AppCompatActivity {
                 
                 // Xác nhận đã tải dữ liệu từ cache
                 if (savedArticlesList != null && !savedArticlesList.isEmpty()) {
-                    // Đảm bảo các ký tự tiếng Việt được hiển thị đúng
+                    // Xử lý tiêu đề tiếng Việt cho các mục từ cache
                     for (RssNewsItem item : savedArticlesList) {
+                        // Xử lý tiêu đề
                         String title = item.getTitle();
-                        if (title != null && !containsVietnameseCharacters(title)) {
-                            try {
-                                byte[] bytes = title.getBytes(StandardCharsets.ISO_8859_1);
-                                String utf8Title = new String(bytes, StandardCharsets.UTF_8);
-                                if (containsVietnameseCharacters(utf8Title)) {
-                                    item.setTitle(utf8Title);
+                        if (title != null) {
+                            // Loại bỏ số ở cuối tiêu đề nếu có
+                            title = title.replaceAll("\\s*\\d+$", "").trim();
+                            
+                            // Kiểm tra và chuyển đổi mã hóa nếu cần
+                            if (!containsVietnameseCharacters(title)) {
+                                try {
+                                    // Kiểm tra nếu title có chứa byte không hợp lệ trong UTF-8
+                                    byte[] bytesUTF8 = title.getBytes(StandardCharsets.UTF_8);
+                                    String utf8Check = new String(bytesUTF8, StandardCharsets.UTF_8);
+                                    
+                                    if (!title.equals(utf8Check)) {
+                                        // Thử ISO-8859-1 to UTF-8
+                                        byte[] bytes = title.getBytes(StandardCharsets.ISO_8859_1);
+                                        String utf8Title = new String(bytes, StandardCharsets.UTF_8);
+                                        
+                                        if (containsVietnameseCharacters(utf8Title)) {
+                                            title = utf8Title;
+                                        } else {
+                                            // Thử Windows-1252 to UTF-8
+                                            byte[] bytesWin = title.getBytes("windows-1252");
+                                            String winTitle = new String(bytesWin, StandardCharsets.UTF_8);
+                                            if (containsVietnameseCharacters(winTitle)) {
+                                                title = winTitle;
+                                            }
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    Log.e(TAG, "Lỗi khi chuyển đổi mã hóa tiêu đề từ cache: " + title, e);
                                 }
+                            }
+                            item.setTitle(title);
+                        }
+                        
+                        // Xử lý URL hình ảnh
+                        String imageUrl = item.getImageUrl();
+                        if (imageUrl == null || imageUrl.isEmpty()) {
+                            // Đảm bảo không để URL null
+                            imageUrl = "https://placeholder.com/wp-content/uploads/2018/10/placeholder.png";
+                            item.setImageUrl(imageUrl);
+                            Log.d(TAG, "Đã thiết lập URL hình ảnh mặc định cho item có tiêu đề: " + item.getTitle());
+                        } else {
+                            try {
+                                // Log URL gốc để debug
+                                Log.d(TAG, "URL hình ảnh gốc từ cache: " + imageUrl);
+                                
+                                // Đảm bảo URL bắt đầu đúng
+                                if (!imageUrl.startsWith("http")) {
+                                    imageUrl = "https:" + imageUrl;
+                                }
+                                
+                                // Xử lý khoảng trắng và ký tự đặc biệt
+                                imageUrl = imageUrl.replaceAll(" ", "%20");
+                                
+                                Log.d(TAG, "URL hình ảnh từ cache sau xử lý: " + imageUrl);
+                                item.setImageUrl(imageUrl);
                             } catch (Exception e) {
-                                Log.e(TAG, "Error converting cached title encoding", e);
+                                Log.e(TAG, "Lỗi khi xử lý URL hình ảnh từ cache", e);
+                                // Đặt URL hình ảnh mặc định nếu có lỗi
+                                item.setImageUrl("https://placeholder.com/wp-content/uploads/2018/10/placeholder.png");
                             }
                         }
                     }
                     
+                    // Cập nhật adapter và hiển thị
                     newsAdapter.updateNewsList(savedArticlesList);
                     binding.emptyStateTextView.setVisibility(View.GONE);
                     binding.savedArticlesRecyclerView.setVisibility(View.VISIBLE);
                     
                     isDataLoaded = true;
-                    Log.d(TAG, "Loaded " + savedArticlesList.size() + " cached articles");
+                    Log.d(TAG, "Đã tải " + savedArticlesList.size() + " bài viết từ cache");
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Error parsing cached articles", e);
+                Log.e(TAG, "Lỗi khi phân tích dữ liệu cache", e);
             }
         }
     }
@@ -303,54 +356,135 @@ public class SavedArticlesActivity extends AppCompatActivity {
         for (articles article : articlesList) {
             RssNewsItem item = new RssNewsItem();
             
-            // Xử lý tiêu đề để không bị mất dấu tiếng Việt
+            // Xử lý tiêu đề để hiển thị đúng dấu tiếng Việt
             String title = article.getTitle();
             if (title != null) {
-                // Nếu tiêu đề có dạng URL encoded, decode nó
+                // Loại bỏ số ở cuối tiêu đề
+                title = title.replaceAll("\\s*\\d+$", "").trim();
+                
+                // Giải mã URL nếu cần
                 if (title.contains("%")) {
                     try {
                         title = URLDecoder.decode(title, StandardCharsets.UTF_8.name());
                     } catch (Exception e) {
-                        Log.e(TAG, "Error decoding title: " + title, e);
+                        Log.e(TAG, "Lỗi khi giải mã tiêu đề: " + title, e);
                     }
                 }
                 
-                // Xử lý mã hóa đặc biệt cho tiếng Việt
-                try {
-                    byte[] bytes = title.getBytes(StandardCharsets.ISO_8859_1);
-                    String utf8Title = new String(bytes, StandardCharsets.UTF_8);
-                    
-                    // Kiểm tra xem UTF-8 có cải thiện không
-                    if (containsVietnameseCharacters(utf8Title) && !containsVietnameseCharacters(title)) {
-                        title = utf8Title;
+                // Thử các phương pháp chuyển đổi mã hóa khác nhau
+                if (!containsVietnameseCharacters(title)) {
+                    try {
+                        // Kiểm tra nếu title có chứa byte không hợp lệ trong UTF-8
+                        byte[] bytesUTF8 = title.getBytes(StandardCharsets.UTF_8);
+                        String utf8Check = new String(bytesUTF8, StandardCharsets.UTF_8);
+                        
+                        if (!title.equals(utf8Check)) {
+                            // Phương pháp 1: ISO-8859-1 to UTF-8
+                            byte[] bytesISO = title.getBytes(StandardCharsets.ISO_8859_1);
+                            String utf8Title = new String(bytesISO, StandardCharsets.UTF_8);
+                            
+                            if (containsVietnameseCharacters(utf8Title)) {
+                                title = utf8Title;
+                            } else {
+                                // Phương pháp 2: Windows-1252 to UTF-8
+                                byte[] bytesWin = title.getBytes("windows-1252");
+                                String winTitle = new String(bytesWin, StandardCharsets.UTF_8);
+                                if (containsVietnameseCharacters(winTitle)) {
+                                    title = winTitle;
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Lỗi khi chuyển đổi mã hóa tiêu đề: " + title, e);
                     }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error converting title encoding: " + title, e);
                 }
             }
             
             item.setTitle(title);
             
-            // Xử lý nội dung để không bị mất dấu tiếng Việt
+            // Xử lý nội dung bài viết
             String content = article.getContent();
             if (content != null) {
-                try {
-                    byte[] bytes = content.getBytes(StandardCharsets.ISO_8859_1);
-                    String utf8Content = new String(bytes, StandardCharsets.UTF_8);
-                    
-                    // Kiểm tra xem UTF-8 có cải thiện không
-                    if (containsVietnameseCharacters(utf8Content) && !containsVietnameseCharacters(content)) {
-                        content = utf8Content;
+                // Áp dụng các phương pháp xử lý tương tự như tiêu đề
+                if (content.contains("%")) {
+                    try {
+                        content = URLDecoder.decode(content, StandardCharsets.UTF_8.name());
+                    } catch (Exception e) {
+                        Log.e(TAG, "Lỗi khi giải mã nội dung", e);
                     }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error converting content encoding: " + content, e);
+                }
+                
+                if (!containsVietnameseCharacters(content)) {
+                    try {
+                        // Kiểm tra nếu content có chứa byte không hợp lệ trong UTF-8
+                        byte[] bytesUTF8 = content.getBytes(StandardCharsets.UTF_8);
+                        String utf8Check = new String(bytesUTF8, StandardCharsets.UTF_8);
+                        
+                        if (!content.equals(utf8Check)) {
+                            byte[] bytesISO = content.getBytes(StandardCharsets.ISO_8859_1);
+                            String utf8Content = new String(bytesISO, StandardCharsets.UTF_8);
+                            
+                            if (containsVietnameseCharacters(utf8Content)) {
+                                content = utf8Content;
+                            } else {
+                                byte[] bytesWin = content.getBytes("windows-1252");
+                                String winContent = new String(bytesWin, StandardCharsets.UTF_8);
+                                if (containsVietnameseCharacters(winContent)) {
+                                    content = winContent;
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Lỗi khi chuyển đổi mã hóa nội dung", e);
+                    }
                 }
             }
             
             item.setDescription(content);
-            item.setImageUrl(article.getImgUrl());
-            item.setLink(article.getId()); // URL lưu trong id
-            item.setPubDate(article.getPublishedAt());
+            
+            // Xử lý URL hình ảnh để tránh lỗi "Failed to create image decoder"
+            String imageUrl = article.getImgUrl();
+            if (imageUrl != null && !imageUrl.isEmpty()) {
+                // Log URL gốc để debug
+                Log.d(TAG, "URL hình ảnh gốc: " + imageUrl);
+                
+                // Kiểm tra và chuẩn hóa URL
+                try {
+                    // Đảm bảo URL bắt đầu bằng http hoặc https
+                    if (!imageUrl.startsWith("http")) {
+                        imageUrl = "https:" + imageUrl;
+                    }
+                    
+                    // Loại bỏ các ký tự không hợp lệ trong URL
+                    imageUrl = imageUrl.replaceAll(" ", "%20");
+                    
+                    Log.d(TAG, "URL hình ảnh sau khi xử lý: " + imageUrl);
+                } catch (Exception e) {
+                    Log.e(TAG, "Lỗi khi xử lý URL hình ảnh: " + imageUrl, e);
+                }
+                
+                item.setImageUrl(imageUrl);
+            } else {
+                // Đặt hình ảnh mặc định - quan trọng: không để null
+                item.setImageUrl("https://placeholder.com/wp-content/uploads/2018/10/placeholder.png");
+            }
+            
+            // Xử lý link và ngày đăng
+            item.setLink(article.getId());
+            
+            // Định dạng lại ngày đăng nếu là timestamp
+            String pubDate = article.getPublishedAt();
+            if (pubDate != null && pubDate.matches("\\d+")) {
+                try {
+                    long timestamp = Long.parseLong(pubDate);
+                    java.util.Date date = new java.util.Date(timestamp);
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault());
+                    pubDate = sdf.format(date);
+                } catch (Exception e) {
+                    Log.e(TAG, "Lỗi khi định dạng ngày đăng: " + pubDate, e);
+                }
+            }
+            item.setPubDate(pubDate);
             
             result.add(item);
         }
@@ -363,7 +497,8 @@ public class SavedArticlesActivity extends AppCompatActivity {
      */
     private boolean containsVietnameseCharacters(String text) {
         if (text == null) return false;
-        return text.matches(".*[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ].*");
+        // Mở rộng regex để bắt nhiều ký tự tiếng Việt hơn, bao gồm cả chữ hoa
+        return text.matches(".*[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ].*");
     }
     
     /**

@@ -99,7 +99,7 @@ public class FirebaseRepository {
     public boolean isFirebaseAvailable() {
         return db != null && mAuth != null;
     }
-
+    
     // Get singleton instance
     public static FirebaseRepository getInstance() {
         if (instance == null) {
@@ -410,26 +410,26 @@ public class FirebaseRepository {
         }
         
         try {
-            // First try SERVER_WITH_CACHE_FALLBACK
-            db.collection(USERS_COLLECTION)
-                    .document(userId)
-                    .get(com.google.firebase.firestore.Source.SERVER)
-                    .addOnSuccessListener(documentSnapshot -> {
-                        if (documentSnapshot.exists()) {
-                            users user = documentSnapshot.toObject(users.class);
-                            Log.d(TAG, "Successfully retrieved user profile from Firestore server");
-                            callback.onCallback(user);
-                        } else {
+        // First try SERVER_WITH_CACHE_FALLBACK
+        db.collection(USERS_COLLECTION)
+                .document(userId)
+                .get(com.google.firebase.firestore.Source.SERVER)
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        users user = documentSnapshot.toObject(users.class);
+                        Log.d(TAG, "Successfully retrieved user profile from Firestore server");
+                        callback.onCallback(user);
+                    } else {
                             Log.d(TAG, "User document does not exist on server, creating new profile");
                             // Tạo profile mới khi không tìm thấy
                             createAndSaveNewUserProfile(userId, callback);
-                        }
-                    })
-                    .addOnFailureListener(e -> {
-                        Log.e(TAG, "Error getting user profile from server", e);
-                        // Try getting from cache if there's a network error
-                        tryGetUserProfileFromCache(userId, callback, e);
-                    });
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error getting user profile from server", e);
+                    // Try getting from cache if there's a network error
+                    tryGetUserProfileFromCache(userId, callback, e);
+                });
         } catch (SecurityException e) {
             Log.e(TAG, "SecurityException when getting user profile. Using cached or offline data", e);
             tryGetUserProfileFromCache(userId, callback, e);
@@ -546,8 +546,8 @@ public class FirebaseRepository {
             String email = "unavailable@offline.mode";
             try {
                 if (mAuth != null && mAuth.getCurrentUser() != null && mAuth.getCurrentUser().getEmail() != null) {
-                    email = mAuth.getCurrentUser().getEmail();
-                    Log.d(TAG, "Using email from Firebase Auth for offline placeholder: " + email);
+                email = mAuth.getCurrentUser().getEmail();
+                Log.d(TAG, "Using email from Firebase Auth for offline placeholder: " + email);
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error accessing FirebaseAuth in offline placeholder", e);
@@ -626,17 +626,17 @@ public class FirebaseRepository {
         }
         
         try {
-            DocumentReference docRef = db.collection(SAVED_ARTICLES_COLLECTION).document();
-            String id = docRef.getId();
-            
-            saved_articles savedArticle = new saved_articles(id, articleId, userId, System.currentTimeMillis());
-            
-            docRef.set(savedArticle)
-                    .addOnSuccessListener(aVoid -> callback.onCallback(id))
-                    .addOnFailureListener(e -> {
-                        Log.e(TAG, "Error saving article", e);
-                        callback.onError(e);
-                    });
+        DocumentReference docRef = db.collection(SAVED_ARTICLES_COLLECTION).document();
+        String id = docRef.getId();
+        
+        saved_articles savedArticle = new saved_articles(id, articleId, userId, System.currentTimeMillis());
+        
+        docRef.set(savedArticle)
+                .addOnSuccessListener(aVoid -> callback.onCallback(id))
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error saving article", e);
+                    callback.onError(e);
+                });
         } catch (Exception e) {
             Log.e(TAG, "Error in saveArticle", e);
             callback.onError(e);
@@ -653,18 +653,18 @@ public class FirebaseRepository {
         }
         
         try {
-            db.collection(SAVED_ARTICLES_COLLECTION)
-                    .whereEqualTo("userId", userId)
-                    .whereEqualTo("articleId", articleId)
-                    .get()
-                    .addOnSuccessListener(queryDocumentSnapshots -> {
-                        boolean isSaved = !queryDocumentSnapshots.isEmpty();
-                        callback.onCallback(isSaved);
-                    })
-                    .addOnFailureListener(e -> {
-                        Log.e(TAG, "Error checking if article is saved", e);
+        db.collection(SAVED_ARTICLES_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("articleId", articleId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    boolean isSaved = !queryDocumentSnapshots.isEmpty();
+                    callback.onCallback(isSaved);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error checking if article is saved", e);
                         callback.onCallback(false);
-                    });
+                });
         } catch (Exception e) {
             Log.e(TAG, "Error in isArticleSaved", e);
             callback.onCallback(false);
@@ -682,26 +682,26 @@ public class FirebaseRepository {
         
         try {
             // Thêm tham số Source.DEFAULT để ưu tiên lấy từ cache nếu có
-            db.collection(SAVED_ARTICLES_COLLECTION)
-                    .whereEqualTo("userId", userId)
-                    .orderBy("savedAt", Query.Direction.DESCENDING)
+        db.collection(SAVED_ARTICLES_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .orderBy("savedAt", Query.Direction.DESCENDING)
                     .get(com.google.firebase.firestore.Source.DEFAULT)
-                    .addOnSuccessListener(queryDocumentSnapshots -> {
-                        List<String> articleIds = new ArrayList<>();
-                        for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
-                            saved_articles savedArticle = document.toObject(saved_articles.class);
-                            articleIds.add(savedArticle.getArticleId());
-                        }
-                        
-                        if (articleIds.isEmpty()) {
-                            callback.onCallback(new ArrayList<>());
-                            return;
-                        }
-                        
-                        // Get the articles using the ids
-                        getArticlesByIds(articleIds, callback);
-                    })
-                    .addOnFailureListener(e -> {
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    List<String> articleIds = new ArrayList<>();
+                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                        saved_articles savedArticle = document.toObject(saved_articles.class);
+                        articleIds.add(savedArticle.getArticleId());
+                    }
+                    
+                    if (articleIds.isEmpty()) {
+                        callback.onCallback(new ArrayList<>());
+                        return;
+                    }
+                    
+                    // Get the articles using the ids
+                    getArticlesByIds(articleIds, callback);
+                })
+                .addOnFailureListener(e -> {
                         Log.e(TAG, "Error getting saved articles, retrying with cache only", e);
                         
                         // Nếu có lỗi (SecurityException), thử lại từ cache
@@ -831,7 +831,7 @@ public class FirebaseRepository {
         final int[] count = {0};
         
         try {
-            for (String articleId : articleIds) {
+        for (String articleId : articleIds) {
                 // Dùng URL để tạo bài viết giả
                 if (articleId.startsWith("http")) {
                     articles article = createArticleFromUrl(articleId);
@@ -844,28 +844,28 @@ public class FirebaseRepository {
                     continue;
                 }
                 
-                db.collection(ARTICLES_COLLECTION)
-                        .document(articleId)
-                        .get()
-                        .addOnSuccessListener(documentSnapshot -> {
-                            if (documentSnapshot.exists()) {
-                                articles article = documentSnapshot.toObject(articles.class);
+            db.collection(ARTICLES_COLLECTION)
+                    .document(articleId)
+                    .get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        if (documentSnapshot.exists()) {
+                            articles article = documentSnapshot.toObject(articles.class);
                                 articlesList.add(article);
                             } else {
                                 // Nếu không tìm thấy, thử tạo bài viết giả từ URL
                                 articles article = createArticleFromUrl(articleId);
                                 if (article != null) {
-                                    articlesList.add(article);
+                            articlesList.add(article);
                                 }
-                            }
-                            
-                            count[0]++;
-                            if (count[0] == articleIds.size()) {
-                                callback.onCallback(articlesList);
-                            }
-                        })
-                        .addOnFailureListener(e -> {
-                            Log.e(TAG, "Error getting article by id", e);
+                        }
+                        
+                        count[0]++;
+                        if (count[0] == articleIds.size()) {
+                            callback.onCallback(articlesList);
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Error getting article by id", e);
                             
                             // Nếu lỗi, thử tạo bài viết giả từ URL
                             articles article = createArticleFromUrl(articleId);
@@ -873,12 +873,12 @@ public class FirebaseRepository {
                                 articlesList.add(article);
                             }
                             
-                            count[0]++;
-                            if (count[0] == articleIds.size()) {
-                                callback.onCallback(articlesList);
-                            }
-                        });
-            }
+                        count[0]++;
+                        if (count[0] == articleIds.size()) {
+                            callback.onCallback(articlesList);
+                        }
+                    });
+        }
         } catch (Exception e) {
             Log.e(TAG, "Error in getArticlesByIds", e);
             callback.onCallback(articlesList);
@@ -1006,29 +1006,29 @@ public class FirebaseRepository {
         }
         
         try {
-            db.collection(SAVED_ARTICLES_COLLECTION)
-                    .whereEqualTo("userId", userId)
-                    .whereEqualTo("articleId", articleId)
-                    .get()
-                    .addOnSuccessListener(queryDocumentSnapshots -> {
-                        if (!queryDocumentSnapshots.isEmpty()) {
-                            String savedArticleId = queryDocumentSnapshots.getDocuments().get(0).getId();
-                            db.collection(SAVED_ARTICLES_COLLECTION)
-                                    .document(savedArticleId)
-                                    .delete()
-                                    .addOnSuccessListener(aVoid -> callback.onCallback(null))
-                                    .addOnFailureListener(e -> {
-                                        Log.e(TAG, "Error unsaving article", e);
+        db.collection(SAVED_ARTICLES_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("articleId", articleId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        String savedArticleId = queryDocumentSnapshots.getDocuments().get(0).getId();
+                        db.collection(SAVED_ARTICLES_COLLECTION)
+                                .document(savedArticleId)
+                                .delete()
+                                .addOnSuccessListener(aVoid -> callback.onCallback(null))
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Error unsaving article", e);
                                         callback.onCallback(null);
-                                    });
-                        } else {
-                            callback.onCallback(null);
-                        }
-                    })
-                    .addOnFailureListener(e -> {
-                        Log.e(TAG, "Error finding saved article", e);
+                                });
+                    } else {
                         callback.onCallback(null);
-                    });
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error finding saved article", e);
+                        callback.onCallback(null);
+                });
         } catch (Exception e) {
             Log.e(TAG, "Error in unsaveArticle", e);
             callback.onCallback(null);
@@ -1098,7 +1098,7 @@ public class FirebaseRepository {
     public String getCurrentUserId() {
         try {
             if (mAuth != null && mAuth.getCurrentUser() != null) {
-                return mAuth.getCurrentUser().getUid();
+            return mAuth.getCurrentUser().getUid();
             }
         } catch (SecurityException e) {
             Log.e(TAG, "SecurityException in getCurrentUserId", e);
@@ -1114,12 +1114,12 @@ public class FirebaseRepository {
     public String getCurrentUserName() {
         try {
             if (mAuth != null && mAuth.getCurrentUser() != null) {
-                if (mAuth.getCurrentUser().getDisplayName() != null && 
-                    !mAuth.getCurrentUser().getDisplayName().isEmpty()) {
-                    return mAuth.getCurrentUser().getDisplayName();
+            if (mAuth.getCurrentUser().getDisplayName() != null && 
+                !mAuth.getCurrentUser().getDisplayName().isEmpty()) {
+                return mAuth.getCurrentUser().getDisplayName();
                 } else if (mAuth.getCurrentUser().getEmail() != null) {
-                    return mAuth.getCurrentUser().getEmail();
-                }
+                return mAuth.getCurrentUser().getEmail();
+            }
             }
         } catch (SecurityException e) {
             Log.e(TAG, "SecurityException in getCurrentUserName", e);
@@ -1134,8 +1134,8 @@ public class FirebaseRepository {
      */
     public void logoutUser() {
         try {
-            if (mAuth != null) {
-                mAuth.signOut();
+        if (mAuth != null) {
+            mAuth.signOut();
             }
         } catch (SecurityException e) {
             Log.e(TAG, "SecurityException when logging out", e);
