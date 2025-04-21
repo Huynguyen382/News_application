@@ -18,6 +18,7 @@ import androidx.databinding.DataBindingUtil;
 import com.bumptech.glide.Glide;
 import com.example.vnews.R;
 import com.example.vnews.Utils.ArticleScraper;
+import com.example.vnews.Utils.EyeProtectionManager;
 import com.example.vnews.databinding.ActivityNewsDetailBinding;
 
 import java.text.ParseException;
@@ -39,6 +40,9 @@ public class NewsDetailActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_news_detail);
+        
+        // Apply eye protection if it's enabled
+        EyeProtectionManager.applyEyeProtectionIfEnabled(this);
         
         // Thiết lập WebView
         setupWebView();

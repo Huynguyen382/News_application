@@ -175,33 +175,79 @@
             app:layout_constraintTop_toBottomOf="@id/divider"
             app:layout_constraintBottom_toTopOf="@id/bottomNavigationView">
 
+            <!-- Eye Protection Mode Setting -->
             <LinearLayout
-                android:id="@+id/personalInfoLayout"
+                android:id="@+id/eyeProtectionLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:padding="16dp"
+                android:padding="12dp"
                 android:gravity="center_vertical"
+                android:background="?attr/selectableItemBackground"
                 android:clickable="true"
                 android:focusable="true">
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_person"/>
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_eye_protection"
+                    android:tint="@color/blue" />
 
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Thông tin cá nhân"
+                    android:text="@string/eye_protection_mode"
                     android:textSize="16sp"
+                    android:textColor="@color/text_color"
+                    android:layout_marginStart="16dp"/>
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switchEyeProtection"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:thumb="@drawable/switch_thumb"
+                    android:scaleX="0.8"
+                    android:scaleY="0.8"
+                    app:track="@drawable/switch_track_selector" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#EEEEEE" />
+
+            <LinearLayout
+                android:id="@+id/personalInfoLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="12dp"
+                android:gravity="center_vertical"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_person"
+                    android:tint="@color/blue"/>
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/personal_info"
+                    android:textSize="16sp"
+                    android:textColor="@color/text_color"
                     android:layout_marginStart="16dp"/>
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_arrow_right"/>
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_arrow_right"
+                    android:tint="@color/text_color"/>
             </LinearLayout>
 
             <View
@@ -214,28 +260,32 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:padding="16dp"
+                android:padding="12dp"
                 android:gravity="center_vertical"
+                android:background="?attr/selectableItemBackground"
                 android:clickable="true"
                 android:focusable="true">
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_lock"/>
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_lock"
+                    android:tint="@color/blue"/>
 
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Đổi mật khẩu"
+                    android:text="@string/change_password"
                     android:textSize="16sp"
+                    android:textColor="@color/text_color"
                     android:layout_marginStart="16dp"/>
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_arrow_right"/>
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_arrow_right"
+                    android:tint="@color/text_color"/>
             </LinearLayout>
 
             <View
@@ -248,28 +298,32 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:padding="16dp"
+                android:padding="12dp"
                 android:gravity="center_vertical"
+                android:background="?attr/selectableItemBackground"
                 android:clickable="true"
                 android:focusable="true">
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_info"/>
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_info"
+                    android:tint="@color/blue"/>
 
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Thông tin ứng dụng"
+                    android:text="@string/app_info"
                     android:textSize="16sp"
+                    android:textColor="@color/text_color"
                     android:layout_marginStart="16dp"/>
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_arrow_right"/>
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_arrow_right"
+                    android:tint="@color/text_color"/>
             </LinearLayout>
 
             <View
@@ -284,26 +338,30 @@
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center_vertical"
+                android:background="?attr/selectableItemBackground"
                 android:orientation="horizontal"
-                android:padding="16dp">
+                android:padding="12dp">
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_logout" />
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_logout"
+                    android:tint="@color/blue" />
 
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="16dp"
                     android:layout_weight="1"
-                    android:text="Đăng xuất"
-                    android:textSize="16sp" />
+                    android:text="@string/logout_button"
+                    android:textSize="16sp"
+                    android:textColor="@color/text_color" />
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_arrow_right" />
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_arrow_right"
+                    android:tint="@color/text_color" />
             </LinearLayout>
             
             <View
@@ -314,7 +372,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="phiên bản 1.0"
+                android:text="@string/app_version"
                 android:textSize="12sp"
                 android:gravity="center"
                 android:padding="8dp"

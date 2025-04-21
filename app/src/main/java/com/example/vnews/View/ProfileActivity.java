@@ -9,15 +9,18 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
+import android.widget.CompoundButton;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import androidx.databinding.DataBindingUtil;
 
 import com.bumptech.glide.Glide;
 import com.example.vnews.Model.users;
 import com.example.vnews.R;
 import com.example.vnews.Repository.FirebaseRepository;
+import com.example.vnews.Utils.EyeProtectionManager;
 import com.example.vnews.databinding.ActivityProfileBinding;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,6 +39,9 @@ public class ProfileActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_profile);
         
+        // Apply eye protection if enabled (must be done after setting content view)
+        EyeProtectionManager.applyEyeProtectionIfEnabled(this);
+        
         // Khởi tạo repository
         repository = new FirebaseRepository();
         timeoutHandler = new Handler(Looper.getMainLooper());
@@ -48,6 +54,9 @@ public class ProfileActivity extends AppCompatActivity {
             getSupportActionBar().setTitle(R.string.profile);
         }
         
+        // Setup Eye Protection Toggle
+        setupEyeProtectionToggle();
+        
         // Thiết lập BottomNavigationView
         setupBottomNavigation();
         
@@ -56,6 +65,32 @@ public class ProfileActivity extends AppCompatActivity {
         
         // Tải thông tin người dùng
         loadUserProfile();
+    }
+    
+    private void setupEyeProtectionToggle() {
+        SwitchCompat eyeProtectionSwitch = binding.switchEyeProtection;
+        
+        // Set initial state based on saved preference
+        boolean isEyeProtectionEnabled = EyeProtectionManager.isEyeProtectionEnabled(this);
+        eyeProtectionSwitch.setChecked(isEyeProtectionEnabled);
+        
+        // Set listener for changes
+        eyeProtectionSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                // Save the new setting
+                EyeProtectionManager.setEyeProtectionEnabled(ProfileActivity.this, isChecked);
+                
+                // Apply the change immediately
+                EyeProtectionManager.applyEyeProtectionIfEnabled(ProfileActivity.this);
+                
+                // Show toast to confirm the change
+                String message = isChecked ? 
+                        getString(R.string.eye_protection_enabled) : 
+                        getString(R.string.eye_protection_disabled);
+                Toast.makeText(ProfileActivity.this, message, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
     
     private void setupBottomNavigation() {

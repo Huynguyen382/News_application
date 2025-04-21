@@ -24,6 +24,7 @@ import com.google.android.material.tabs.TabLayout;
 import androidx.databinding.DataBindingUtil;
 import com.example.vnews.databinding.ActivityHomeBinding;
 import com.example.vnews.Model.articles;
+import com.example.vnews.Utils.EyeProtectionManager;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -47,6 +48,9 @@ public class HomeActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_home);
+        
+        // Apply eye protection if it's enabled
+        EyeProtectionManager.applyEyeProtectionIfEnabled(this);
         
         preferences = getSharedPreferences("VNNews", MODE_PRIVATE);
         repository = new FirebaseRepository();
@@ -130,11 +134,6 @@ public class HomeActivity extends AppCompatActivity {
 
         // Bottom navigation - Sử dụng lớp BottomNavMenu
         BottomNavMenu.setup(this, binding.bottomNavigationView, R.id.navigation_home);
-
-        // Search icon click
-        binding.searchIcon.setOnClickListener(v -> {
-            binding.searchEditText.requestFocus();
-        });
     }
 
     // Load news from VnExpress RSS feed
