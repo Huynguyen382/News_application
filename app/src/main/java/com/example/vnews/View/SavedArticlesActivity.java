@@ -337,7 +337,7 @@ public class SavedArticlesActivity extends AppCompatActivity {
                         
                         // Đánh dấu các bài RSS là không thể xóa (không được lưu từ người dùng)
                         for (RssNewsItem item : savedArticlesList) {
-                            item.setIsFromRss(true); // Cần thêm thuộc tính này vào RssNewsItem
+                            item.setFromRss(true); // Cần thêm thuộc tính này vào RssNewsItem
                         }
                         
                         // Hiển thị danh sách
@@ -621,21 +621,54 @@ public class SavedArticlesActivity extends AppCompatActivity {
             // Update cache
             cacheArticles(savedArticlesList);
             
-            // Re-save article on Firebase
-            repository.saveArticle(userId, articleId, new FirebaseRepository.FirestoreCallback<String>() {
-                @Override
-                public void onCallback(String result) {
-                    // UI already updated, nothing more to do
+            // Re-save article on Firebase - sử dụng saveRssArticle với GUID
+            if (removedItem.getTitle() != null && removedItem.getLink() != null) {
+                String guid = removedItem.getGuid();
+                if (guid == null || guid.isEmpty()) {
+                    guid = removedItem.getLink(); // Fallback to link if no GUID
                 }
                 
-                @Override
-                public void onError(Exception e) {
-                    Log.e(TAG, "Error when undoing article unsave", e);
-                    Toast.makeText(SavedArticlesActivity.this, 
-                            "Lỗi khi hoàn tác: " + e.getMessage(), 
-                            Toast.LENGTH_SHORT).show();
-                }
-            });
+                repository.saveRssArticle(
+                    userId,
+                    articleId,
+                    removedItem.getTitle(),
+                    removedItem.getDescription(),
+                    removedItem.getPubDate(),
+                    removedItem.getLink(),
+                    removedItem.getImageUrl(),
+                    guid,
+                    new FirebaseRepository.FirestoreCallback<String>() {
+                        @Override
+                        public void onCallback(String result) {
+                            // UI already updated, nothing more to do
+                        }
+                        
+                        @Override
+                        public void onError(Exception e) {
+                            Log.e(TAG, "Error when undoing article unsave", e);
+                            Toast.makeText(SavedArticlesActivity.this, 
+                                    "Lỗi khi hoàn tác: " + e.getMessage(), 
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                );
+            } else {
+                // Dùng phương thức cũ nếu thiếu thông tin
+                repository.saveArticle(userId, articleId, new FirebaseRepository.FirestoreCallback<String>() {
+                    @Override
+                    public void onCallback(String result) {
+                        // UI already updated, nothing more to do
+                    }
+                    
+                    @Override
+                    public void onError(Exception e) {
+                        Log.e(TAG, "Error when undoing article unsave", e);
+                        Toast.makeText(SavedArticlesActivity.this, 
+                                "Lỗi khi hoàn tác: " + e.getMessage(), 
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
         });
         
         snackbar.show();
@@ -759,5 +792,60 @@ public class SavedArticlesActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    /**
+     * Xử lý khi người dùng muốn lưu bài báo từ RSS
+     */
+    public void saveRssNewsItem(RssNewsItem item) {
+        if (!repository.isUserLoggedIn() || item == null) {
+            Toast.makeText(this, "Vui lòng đăng nhập để lưu bài viết", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String userId = repository.getCurrentUserId();
+        
+        // Tạo ID duy nhất cho bài viết, sử dụng link
+        String articleId = item.getLink();
+        if (articleId == null || articleId.isEmpty()) {
+            articleId = "rss_" + System.currentTimeMillis();
+        }
+        
+        // Lấy GUID nếu có, nếu không thì dùng link
+        String guid = item.getGuid();
+        if (guid == null || guid.isEmpty()) {
+            guid = articleId;
+        }
+        
+        // Sử dụng phương thức saveRssArticle mới với trường GUID
+        repository.saveRssArticle(
+            userId,
+            articleId,
+            item.getTitle(),
+            item.getDescription(),
+            item.getPubDate(),
+            item.getLink(),
+            item.getImageUrl(),
+            guid,
+            new FirebaseRepository.FirestoreCallback<String>() {
+                @Override
+                public void onCallback(String result) {
+                    Toast.makeText(SavedArticlesActivity.this, 
+                            "Đã lưu bài viết thành công", 
+                            Toast.LENGTH_SHORT).show();
+                            
+                    // Refresh danh sách bài viết đã lưu
+                    loadSavedArticles();
+                }
+                
+                @Override
+                public void onError(Exception e) {
+                    Log.e(TAG, "Lỗi khi lưu bài viết RSS", e);
+                    Toast.makeText(SavedArticlesActivity.this, 
+                            "Lỗi khi lưu bài viết: " + e.getMessage(), 
+                            Toast.LENGTH_SHORT).show();
+                }
+            }
+        );
     }
 } 

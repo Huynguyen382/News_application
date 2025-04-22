@@ -7,18 +7,20 @@ public class RssNewsItem {
     private String link;
     private String imageUrl;
     private boolean isFromRss;
+    private String guid;
 
     public RssNewsItem() {
         this.isFromRss = false;
     }
 
-    public RssNewsItem(String title, String description, String pubDate, String link, String imageUrl) {
+    public RssNewsItem(String title, String description, String pubDate, String link, String imageUrl, String guid) {
         this.title = title;
         this.description = description;
         this.pubDate = pubDate;
         this.link = link;
         this.imageUrl = imageUrl;
-        this.isFromRss = false;
+        this.guid = guid;
+        this.isFromRss = true;
     }
 
     public String getTitle() {
@@ -65,14 +67,46 @@ public class RssNewsItem {
         return isFromRss;
     }
 
-    public void setIsFromRss(boolean isFromRss) {
-        this.isFromRss = isFromRss;
+    public void setFromRss(boolean fromRss) {
+        this.isFromRss = fromRss;
+    }
+    
+    public String getGuid() {
+        return guid;
+    }
+    
+    public void setGuid(String guid) {
+        this.guid = guid;
     }
 
-    // Extract clean description (remove HTML tags)
+    // Extract clean description (remove HTML tags and CDATA)
     public String getCleanDescription() {
         if (description == null) return "";
+        // Remove CDATA markers
+        String clean = description.replaceAll("<!\\[CDATA\\[", "")
+                                   .replaceAll("\\]\\]>", "");
         // Remove any HTML tags and extract only text
-        return description.replaceAll("\\<.*?\\>", "").trim();
+        return clean.replaceAll("\\<.*?\\>", "").trim();
+    }
+    
+    // Extract image URL from description if not already set
+    public String getEffectiveImageUrl() {
+        if (imageUrl != null && !imageUrl.isEmpty()) {
+            return imageUrl;
+        }
+        
+        // Try to extract from description if it contains an img tag
+        if (description != null && description.contains("<img")) {
+            int srcIndex = description.indexOf("src=\"");
+            if (srcIndex >= 0) {
+                int startIndex = srcIndex + 5;
+                int endIndex = description.indexOf("\"", startIndex);
+                if (endIndex > startIndex) {
+                    return description.substring(startIndex, endIndex);
+                }
+            }
+        }
+        
+        return "";
     }
 } 

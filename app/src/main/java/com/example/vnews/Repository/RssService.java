@@ -77,6 +77,14 @@ public class RssService {
                 news.setPubDate(item.select("pubDate").text());
                 news.setLink(item.select("link").text());
                 
+                // Extract guid if available
+                String guid = item.select("guid").text();
+                if (guid == null || guid.isEmpty()) {
+                    // If no guid, use link as fallback
+                    guid = news.getLink();
+                }
+                news.setGuid(guid);
+                
                 // Extract description which contains HTML
                 String description = item.select("description").text();
                 news.setDescription(description);
@@ -100,6 +108,10 @@ public class RssService {
                 }
                 
                 news.setImageUrl(imageUrl);
+                
+                // Set this item as coming from RSS
+                news.setFromRss(true);
+                
                 newsList.add(news);
             }
             

@@ -611,6 +611,52 @@ public class FirebaseRepository {
     // ===== SAVED ARTICLES METHODS =====
     
     /**
+     * Save article from RSS feed
+     */
+    public void saveRssArticle(String userId, String articleId, String title, String description, 
+                            String pubDate, String link, String imageUrl, String guid,
+                            final FirestoreCallback<String> callback) {
+        if (userId == null || link == null) {
+            callback.onError(new Exception("User ID hoặc Link không được để trống"));
+            return;
+        }
+        
+        if (db == null) {
+            Log.e(TAG, "Firestore instance is null");
+            callback.onError(new Exception("Firebase services unavailable"));
+            return;
+        }
+        
+        try {
+            DocumentReference docRef = db.collection(SAVED_ARTICLES_COLLECTION).document();
+            String id = docRef.getId();
+            
+            saved_articles savedArticle = new saved_articles(
+                id, 
+                articleId, 
+                userId, 
+                System.currentTimeMillis(),
+                title,
+                description,
+                pubDate,
+                link,
+                imageUrl,
+                guid
+            );
+            
+            docRef.set(savedArticle)
+                .addOnSuccessListener(aVoid -> callback.onCallback(id))
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error saving RSS article", e);
+                    callback.onError(e);
+                });
+        } catch (Exception e) {
+            Log.e(TAG, "Error in saveRssArticle", e);
+            callback.onError(e);
+        }
+    }
+    
+    /**
      * Save article
      */
     public void saveArticle(String userId, String articleId, final FirestoreCallback<String> callback) {
@@ -626,12 +672,22 @@ public class FirebaseRepository {
         }
         
         try {
-        DocumentReference docRef = db.collection(SAVED_ARTICLES_COLLECTION).document();
-        String id = docRef.getId();
-        
-        saved_articles savedArticle = new saved_articles(id, articleId, userId, System.currentTimeMillis());
-        
-        docRef.set(savedArticle)
+            DocumentReference docRef = db.collection(SAVED_ARTICLES_COLLECTION).document();
+            String id = docRef.getId();
+            
+            // Sử dụng constructor cơ bản nếu không có thông tin RSS
+            saved_articles savedArticle = new saved_articles(id, articleId, userId, System.currentTimeMillis());
+            
+            // Nếu articleId là URL, thì có thể là bài viết RSS
+            if (articleId.startsWith("http")) {
+                // Tạo các giá trị mặc định cho trường RSS
+                savedArticle.setLink(articleId);
+                savedArticle.setTitle("Bài viết đã lưu");
+                savedArticle.setPubDate(String.valueOf(System.currentTimeMillis()));
+                savedArticle.setGuid(articleId); // Sử dụng URL làm GUID
+            }
+            
+            docRef.set(savedArticle)
                 .addOnSuccessListener(aVoid -> callback.onCallback(id))
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Error saving article", e);
