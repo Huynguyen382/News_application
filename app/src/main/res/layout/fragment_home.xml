@@ -129,6 +129,18 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
+                    <!-- Search Results Count -->
+                    <TextView
+                        android:id="@+id/searchResultsCount"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/primary"
+                        android:textSize="14sp"
+                        android:textStyle="italic"
+                        android:paddingBottom="8dp"
+                        android:visibility="gone"
+                        tools:text="Tìm thấy 5 kết quả cho 'covid'" />
+
                     <!-- Featured News Section -->
                     <TextView
                         android:layout_width="wrap_content"
@@ -188,6 +200,42 @@
                         android:textSize="20sp"
                         android:textStyle="bold"
                         android:layout_marginBottom="16dp" />
+
+                    <!-- No Results View -->
+                    <LinearLayout
+                        android:id="@+id/noResultsView"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:padding="24dp"
+                        android:visibility="gone">
+                        
+                        <ImageView
+                            android:layout_width="64dp"
+                            android:layout_height="64dp"
+                            android:src="@drawable/ic_search"
+                            android:alpha="0.5"
+                            android:contentDescription="@string/no_results_icon" />
+                            
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/no_search_results"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/secondary_text_color"
+                            android:layout_marginTop="16dp" />
+                            
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/no_results_description"
+                            android:textSize="14sp"
+                            android:textColor="@color/secondary_text_color"
+                            android:textAlignment="center"
+                            android:layout_marginTop="8dp" />
+                    </LinearLayout>
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/newsRecyclerView"

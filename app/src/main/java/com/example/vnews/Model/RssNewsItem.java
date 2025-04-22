@@ -97,13 +97,55 @@ public class RssNewsItem {
         
         // Try to extract from description if it contains an img tag
         if (description != null && description.contains("<img")) {
-            int srcIndex = description.indexOf("src=\"");
-            if (srcIndex >= 0) {
-                int startIndex = srcIndex + 5;
-                int endIndex = description.indexOf("\"", startIndex);
-                if (endIndex > startIndex) {
-                    return description.substring(startIndex, endIndex);
+            try {
+                // First attempt with standard regex
+                int srcIndex = description.indexOf("src=\"");
+                if (srcIndex >= 0) {
+                    int startIndex = srcIndex + 5;
+                    int endIndex = description.indexOf("\"", startIndex);
+                    if (endIndex > startIndex) {
+                        String extractedUrl = description.substring(startIndex, endIndex);
+                        if (!extractedUrl.isEmpty()) {
+                            return extractedUrl;
+                        }
+                    }
                 }
+                
+                // Second attempt with Jsoup for better HTML parsing
+                org.jsoup.nodes.Document doc = org.jsoup.Jsoup.parse(description);
+                org.jsoup.nodes.Element imgElement = doc.select("img").first();
+                if (imgElement != null) {
+                    String jsoupImageUrl = imgElement.attr("src");
+                    if (jsoupImageUrl != null && !jsoupImageUrl.isEmpty()) {
+                        return jsoupImageUrl;
+                    }
+                }
+                
+                // Third attempt for data-src or data-original attributes (lazy loading)
+                org.jsoup.nodes.Element imgWithDataSrc = doc.select("img[data-src]").first();
+                if (imgWithDataSrc != null) {
+                    String dataSrc = imgWithDataSrc.attr("data-src");
+                    if (dataSrc != null && !dataSrc.isEmpty()) {
+                        return dataSrc;
+                    }
+                }
+                
+                // Fourth attempt for VnExpress specific picture tag
+                org.jsoup.nodes.Element pictureElement = doc.select("picture source").first();
+                if (pictureElement != null) {
+                    String srcset = pictureElement.attr("srcset");
+                    if (srcset != null && !srcset.isEmpty()) {
+                        // Get the first URL from srcset (format might be "url size, url size, ...")
+                        int spaceIndex = srcset.indexOf(" ");
+                        if (spaceIndex > 0) {
+                            return srcset.substring(0, spaceIndex);
+                        }
+                        return srcset;
+                    }
+                }
+            } catch (Exception e) {
+                // If any exception occurs, return empty string
+                android.util.Log.e("RssNewsItem", "Error extracting image URL", e);
             }
         }
         

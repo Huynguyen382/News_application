@@ -26,7 +26,7 @@ public class ExploreFragment extends Fragment {
     private RssService rssService;
 
     // RSS feed URL for most viewed articles
-    private static final String MOST_VIEWED_RSS_URL = "https://vnexpress.net/rss/tin-xem-nhieu.rss";
+    private static final String MOST_VIEWED_RSS_URL = "https://vnexpress.net/rss/du-lich.rss";
 
     @Nullable
     @Override

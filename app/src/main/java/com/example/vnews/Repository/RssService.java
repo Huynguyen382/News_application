@@ -117,14 +117,44 @@ public class RssService {
                 Element enclosure = item.selectFirst("enclosure");
                 if (enclosure != null && enclosure.hasAttr("url")) {
                     imageUrl = enclosure.attr("url");
+                    Log.d(TAG, "Image URL from enclosure: " + imageUrl);
                 } 
-                // Otherwise try to parse from description which may contain image url in HTML
-                else if (description != null && !description.isEmpty()) {
-                    // Look for image URL pattern in the description
-                    Pattern pattern = Pattern.compile("src=\"(.*?)\"");
-                    Matcher matcher = pattern.matcher(description);
-                    if (matcher.find()) {
-                        imageUrl = matcher.group(1);
+                // Check for media:thumbnail or media:content tags (common in RSS feeds)
+                else {
+                    Element mediaThumbnail = item.selectFirst("media|thumbnail, media|content");
+                    if (mediaThumbnail != null && mediaThumbnail.hasAttr("url")) {
+                        imageUrl = mediaThumbnail.attr("url");
+                        Log.d(TAG, "Image URL from media:thumbnail/content: " + imageUrl);
+                    }
+                    // Check for image tag directly in the item
+                    else {
+                        Element imageElement = item.selectFirst("image");
+                        if (imageElement != null && imageElement.selectFirst("url") != null) {
+                            imageUrl = imageElement.selectFirst("url").text();
+                            Log.d(TAG, "Image URL from image tag: " + imageUrl);
+                        }
+                        // Otherwise try to parse from description which may contain image url in HTML
+                        else if (description != null && !description.isEmpty()) {
+                            try {
+                                // Try parsing with JSoup first for more reliable extraction
+                                Document descDoc = Jsoup.parse(description);
+                                Element imgTag = descDoc.selectFirst("img");
+                                if (imgTag != null && imgTag.hasAttr("src")) {
+                                    imageUrl = imgTag.attr("src");
+                                    Log.d(TAG, "Image URL from description with JSoup: " + imageUrl);
+                                } else {
+                                    // Fallback to regex pattern if JSoup doesn't find anything
+                                    Pattern pattern = Pattern.compile("src=\"(.*?)\"");
+                                    Matcher matcher = pattern.matcher(description);
+                                    if (matcher.find()) {
+                                        imageUrl = matcher.group(1);
+                                        Log.d(TAG, "Image URL from description with regex: " + imageUrl);
+                                    }
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error parsing description for image", e);
+                            }
+                        }
                     }
                 }
                 
