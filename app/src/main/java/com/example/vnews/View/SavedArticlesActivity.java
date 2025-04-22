@@ -38,6 +38,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import com.example.vnews.Repository.RssService;
 
 public class SavedArticlesActivity extends AppCompatActivity {
 
@@ -47,6 +48,9 @@ public class SavedArticlesActivity extends AppCompatActivity {
     private static final long CACHE_VALIDITY_MS = 30 * 60 * 1000; // 30 phút
     private static final int LOADING_TIMEOUT_MS = 6000; // 6 giây
 
+    // RSS feed URL cho tin đã lưu dự phòng khi không thể kết nối Firebase
+    private static final String BACKUP_RSS_URL = "https://vnexpress.net/rss/tin-noi-bat.rss";
+
     private ActivitySavedArticlesBinding binding;
     private FirebaseRepository repository;
     private NewsAdapter newsAdapter;
@@ -54,6 +58,7 @@ public class SavedArticlesActivity extends AppCompatActivity {
     private SharedPreferences prefs;
     private Handler timeoutHandler;
     private boolean isDataLoaded = false;
+    private RssService rssService; // Thêm RssService
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,6 +70,7 @@ public class SavedArticlesActivity extends AppCompatActivity {
         savedArticlesList = new ArrayList<>();
         prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         timeoutHandler = new Handler(Looper.getMainLooper());
+        rssService = new RssService(); // Khởi tạo RssService
         
         // Áp dụng chế độ bảo vệ mắt nếu đã bật
         EyeProtectionManager.applyEyeProtectionIfEnabled(this);
@@ -251,20 +257,9 @@ public class SavedArticlesActivity extends AppCompatActivity {
             timeoutHandler.postDelayed(() -> {
                 // Chỉ hiển thị timeout nếu callback chưa được gọi
                 if (callbackCalled.compareAndSet(false, true)) {
-                    Log.d(TAG, "Firebase operation timed out");
-                    binding.swipeRefreshLayout.setRefreshing(false);
-                    
-                    // Nếu không có dữ liệu, hiển thị thông báo
-                    if (!isDataLoaded) {
-                        binding.emptyStateTextView.setVisibility(View.VISIBLE);
-                        binding.savedArticlesRecyclerView.setVisibility(View.GONE);
-                        binding.emptyStateTextView.setText("Không thể tải dữ liệu. Vui lòng kiểm tra kết nối mạng.");
-                    } else {
-                        // Hiển thị thông báo toast nếu đã có dữ liệu cache
-                        Toast.makeText(SavedArticlesActivity.this, 
-                                "Không thể tải dữ liệu mới. Đang hiển thị dữ liệu đã lưu.", 
-                                Toast.LENGTH_SHORT).show();
-                    }
+                    Log.d(TAG, "Firebase operation timed out, chuyển sang sử dụng RSS");
+                    // Tải dữ liệu dự phòng từ RSS nếu có timeout
+                    loadRssData(BACKUP_RSS_URL, true);
                 }
             }, LOADING_TIMEOUT_MS);
             
@@ -293,14 +288,8 @@ public class SavedArticlesActivity extends AppCompatActivity {
                             cacheArticles(savedArticlesList);
                             isDataLoaded = true;
                         } else {
-                            // Hiển thị thông báo không có bài viết đã lưu
-                            binding.emptyStateTextView.setVisibility(View.VISIBLE);
-                            binding.savedArticlesRecyclerView.setVisibility(View.GONE);
-                            binding.emptyStateTextView.setText(R.string.no_saved_articles);
-                            
-                            // Xóa cache khi không có bài viết
-                            clearArticlesCache();
-                            isDataLoaded = false;
+                            // Nếu không có bài viết đã lưu, tải dữ liệu RSS dự phòng
+                            loadRssData(BACKUP_RSS_URL, false);
                         }
                     }
                 }
@@ -312,33 +301,102 @@ public class SavedArticlesActivity extends AppCompatActivity {
                         // Hủy timeout
                         timeoutHandler.removeCallbacksAndMessages(null);
                         
-                        binding.swipeRefreshLayout.setRefreshing(false);
+                        Log.e(TAG, "Error loading saved articles, switching to RSS", e);
                         
-                        if (!isDataLoaded) {
-                            binding.emptyStateTextView.setVisibility(View.VISIBLE);
-                            binding.savedArticlesRecyclerView.setVisibility(View.GONE);
-                            binding.emptyStateTextView.setText("Lỗi: " + e.getMessage());
-                        } else {
-                            // Nếu đã có dữ liệu từ cache, chỉ hiển thị thông báo lỗi
-                            Toast.makeText(SavedArticlesActivity.this, 
-                                    "Lỗi khi tải: " + e.getMessage(), 
-                                    Toast.LENGTH_SHORT).show();
-                        }
-                        
-                        Log.e(TAG, "Error loading saved articles", e);
+                        // Tải dữ liệu dự phòng từ RSS khi có lỗi Firebase
+                        loadRssData(BACKUP_RSS_URL, true);
                     }
                 }
             });
         } else {
-            binding.swipeRefreshLayout.setRefreshing(false);
-            binding.emptyStateTextView.setVisibility(View.VISIBLE);
-            binding.savedArticlesRecyclerView.setVisibility(View.GONE);
-            binding.emptyStateTextView.setText("Vui lòng đăng nhập để xem bài viết đã lưu");
-            
-            // Xóa cache khi không đăng nhập
-            clearArticlesCache();
-            isDataLoaded = false;
+            // Nếu không đăng nhập, tải dữ liệu từ RSS
+            loadRssData(BACKUP_RSS_URL, false);
         }
+    }
+    
+    /**
+     * Tải dữ liệu từ nguồn RSS
+     * @param rssUrl URL của nguồn RSS
+     * @param showToast Hiển thị thông báo khi chuyển sang dữ liệu RSS
+     */
+    private void loadRssData(String rssUrl, boolean showToast) {
+        if (showToast) {
+            Toast.makeText(this, "Đang tải tin mới từ nguồn VnExpress", Toast.LENGTH_SHORT).show();
+        }
+        
+        rssService.fetchNewsData(rssUrl, new RssService.OnFetchDataListener() {
+            @Override
+            public void onFetchDataSuccess(List<RssNewsItem> items) {
+                runOnUiThread(() -> {
+                    binding.swipeRefreshLayout.setRefreshing(false);
+                    
+                    if (items != null && !items.isEmpty()) {
+                        // Cập nhật dữ liệu
+                        savedArticlesList.clear();
+                        savedArticlesList.addAll(items);
+                        
+                        // Đánh dấu các bài RSS là không thể xóa (không được lưu từ người dùng)
+                        for (RssNewsItem item : savedArticlesList) {
+                            item.setIsFromRss(true); // Cần thêm thuộc tính này vào RssNewsItem
+                        }
+                        
+                        // Hiển thị danh sách
+                        binding.emptyStateTextView.setVisibility(View.GONE);
+                        binding.savedArticlesRecyclerView.setVisibility(View.VISIBLE);
+                        
+                        // Cập nhật adapter
+                        newsAdapter.updateNewsList(savedArticlesList);
+                        
+                        // Lưu cache
+                        cacheArticles(savedArticlesList);
+                        isDataLoaded = true;
+                        
+                        // Cập nhật tiêu đề để người dùng biết đang xem dữ liệu gì
+                        if (getSupportActionBar() != null) {
+                            getSupportActionBar().setTitle("Tin nổi bật VnExpress");
+                        }
+                    } else {
+                        // Nếu không có dữ liệu
+                        binding.emptyStateTextView.setVisibility(View.VISIBLE);
+                        binding.savedArticlesRecyclerView.setVisibility(View.GONE);
+                        binding.emptyStateTextView.setText("Không tìm thấy bài viết");
+                        
+                        if (getSupportActionBar() != null) {
+                            getSupportActionBar().setTitle(R.string.saved_articles);
+                        }
+                        
+                        // Xóa cache
+                        clearArticlesCache();
+                        isDataLoaded = false;
+                    }
+                });
+            }
+
+            @Override
+            public void onFetchDataFailure(Exception e) {
+                runOnUiThread(() -> {
+                    binding.swipeRefreshLayout.setRefreshing(false);
+                    
+                    if (!isDataLoaded) {
+                        // Nếu chưa tải được dữ liệu nào, hiển thị thông báo lỗi
+                        binding.emptyStateTextView.setVisibility(View.VISIBLE);
+                        binding.savedArticlesRecyclerView.setVisibility(View.GONE);
+                        binding.emptyStateTextView.setText("Không thể tải dữ liệu. Hãy kiểm tra kết nối mạng.");
+                        
+                        if (getSupportActionBar() != null) {
+                            getSupportActionBar().setTitle(R.string.saved_articles);
+                        }
+                    } else {
+                        // Nếu đã có dữ liệu từ cache, hiển thị thông báo
+                        Toast.makeText(SavedArticlesActivity.this, 
+                                "Lỗi khi tải: " + e.getMessage(), 
+                                Toast.LENGTH_SHORT).show();
+                    }
+                    
+                    Log.e(TAG, "Lỗi khi tải dữ liệu RSS", e);
+                });
+            }
+        });
     }
     
     private void clearArticlesCache() {
@@ -512,22 +570,30 @@ public class SavedArticlesActivity extends AppCompatActivity {
         String userId = repository.getCurrentUserId();
         String articleId = item.getLink();
         
-        // Tạm thời xóa khỏi adapter trước để UI phản hồi nhanh
+        // Create a copy of the item and its position for restoring if needed
         final RssNewsItem removedItem = item;
-        newsAdapter.removeItem(position);
+        final int removedPosition = position;
         
-        // Cập nhật cache ngay sau khi xóa khỏi UI
-        savedArticlesList.remove(position);
-        cacheArticles(savedArticlesList);
+        // Remove from list first
+        if (position < savedArticlesList.size()) {
+            savedArticlesList.remove(position);
+            
+            // Update adapter with the new list instead of just removing one item
+            // This ensures adapter and dataset stay in sync
+            newsAdapter.updateNewsList(new ArrayList<>(savedArticlesList));
+            
+            // Update cache after modifying the list
+            cacheArticles(savedArticlesList);
+        }
         
-        // Kiểm tra nếu không còn bài viết nào
-        if (newsAdapter.getItemCount() == 0) {
+        // Check if no articles remain
+        if (savedArticlesList.isEmpty()) {
             binding.emptyStateTextView.setVisibility(View.VISIBLE);
             binding.savedArticlesRecyclerView.setVisibility(View.GONE);
             binding.emptyStateTextView.setText(R.string.no_saved_articles);
         }
         
-        // Hiển thị Snackbar với tùy chọn hoàn tác
+        // Show Snackbar with undo option
         Snackbar snackbar = Snackbar.make(
                 binding.getRoot(),
                 "Đã xóa bài viết khỏi danh sách đã lưu",
@@ -535,27 +601,36 @@ public class SavedArticlesActivity extends AppCompatActivity {
         );
         
         snackbar.setAction("Hoàn tác", v -> {
-            // Thêm lại vào adapter ngay lập tức để UI phản hồi nhanh
-            savedArticlesList.add(position, removedItem);
-            newsAdapter.updateNewsList(savedArticlesList);
+            // Add back to the list at the original position if possible
+            if (removedPosition <= savedArticlesList.size()) {
+                savedArticlesList.add(removedPosition, removedItem);
+            } else {
+                // Add to the end if the original position is no longer valid
+                savedArticlesList.add(removedItem);
+            }
             
-            if (binding.emptyStateTextView.getVisibility() == View.VISIBLE) {
+            // Update adapter with the full list to ensure consistency
+            newsAdapter.updateNewsList(new ArrayList<>(savedArticlesList));
+            
+            // Update UI if needed
+            if (savedArticlesList.size() > 0 && binding.emptyStateTextView.getVisibility() == View.VISIBLE) {
                 binding.emptyStateTextView.setVisibility(View.GONE);
                 binding.savedArticlesRecyclerView.setVisibility(View.VISIBLE);
             }
             
-            // Cập nhật cache
+            // Update cache
             cacheArticles(savedArticlesList);
             
-            // Lưu lại bài viết trên Firebase
+            // Re-save article on Firebase
             repository.saveArticle(userId, articleId, new FirebaseRepository.FirestoreCallback<String>() {
                 @Override
                 public void onCallback(String result) {
-                    // Đã thêm vào UI rồi, không cần làm gì thêm
+                    // UI already updated, nothing more to do
                 }
                 
                 @Override
                 public void onError(Exception e) {
+                    Log.e(TAG, "Error when undoing article unsave", e);
                     Toast.makeText(SavedArticlesActivity.this, 
                             "Lỗi khi hoàn tác: " + e.getMessage(), 
                             Toast.LENGTH_SHORT).show();
@@ -565,19 +640,19 @@ public class SavedArticlesActivity extends AppCompatActivity {
         
         snackbar.show();
         
-        // Thực hiện unsave trên Firebase (ngay cả khi đã cập nhật UI trước)
+        // Unsave on Firebase
         repository.unsaveArticle(userId, articleId, new FirebaseRepository.FirestoreCallback<Void>() {
             @Override
             public void onCallback(Void unused) {
-                // Đã cập nhật UI rồi, không cần làm gì thêm
+                // UI already updated, nothing more to do
             }
             
             @Override
             public void onError(Exception e) {
+                Log.e(TAG, "Error unsaving article", e);
                 Toast.makeText(SavedArticlesActivity.this, 
                         "Cảnh báo: Có thể xóa không thành công trên máy chủ. Vui lòng thử lại.", 
                         Toast.LENGTH_SHORT).show();
-                Log.e(TAG, "Error unsaving article", e);
             }
         });
     }
@@ -588,23 +663,46 @@ public class SavedArticlesActivity extends AppCompatActivity {
     private class SwipeToDeleteCallback extends ItemTouchHelper.SimpleCallback {
         
         SwipeToDeleteCallback() {
-            super(0, ItemTouchHelper.RIGHT); // Chỉ cho phép vuốt sang phải
+            super(0, ItemTouchHelper.RIGHT); // Only allow right swipe
         }
         
         @Override
         public boolean onMove(@NonNull RecyclerView recyclerView, 
                              @NonNull RecyclerView.ViewHolder viewHolder, 
                              @NonNull RecyclerView.ViewHolder target) {
-            return false; // Không hỗ trợ kéo thả
+            return false; // Don't support drag & drop
         }
         
         @Override
         public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
-            int position = viewHolder.getAdapterPosition();
-            RssNewsItem item = newsAdapter.getItemAtPosition(position);
+            final int position = viewHolder.getAdapterPosition();
             
-            if (item != null) {
-                unsaveArticle(item, position);
+            // Protect against invalid position
+            if (position == RecyclerView.NO_POSITION) {
+                // Reset the view state
+                newsAdapter.notifyDataSetChanged();
+                return;
+            }
+            
+            // Verify the position is valid
+            if (position >= 0 && position < savedArticlesList.size()) {
+                RssNewsItem item = savedArticlesList.get(position);
+                if (item != null) {
+                    // Chỉ cho phép xóa bài viết không phải từ RSS
+                    if (item.isFromRss()) {
+                        // Nếu là bài từ RSS, không cho xóa và hiển thị thông báo
+                        Toast.makeText(SavedArticlesActivity.this, 
+                                "Không thể xóa bài viết từ RSS", 
+                                Toast.LENGTH_SHORT).show();
+                        newsAdapter.notifyDataSetChanged(); // Reset swipe state
+                    } else {
+                        // Chỉ xóa bài đã lưu từ Firebase
+                        unsaveArticle(item, position);
+                    }
+                }
+            } else {
+                // Position out of bounds, just refresh the adapter
+                newsAdapter.notifyDataSetChanged();
             }
         }
         
@@ -613,17 +711,35 @@ public class SavedArticlesActivity extends AppCompatActivity {
                                @NonNull RecyclerView.ViewHolder viewHolder, 
                                float dX, float dY, int actionState, boolean isCurrentlyActive) {
             
+            // Check for valid position before drawing
+            if (viewHolder.getAdapterPosition() == RecyclerView.NO_POSITION) {
+                return;
+            }
+            
             View itemView = viewHolder.itemView;
             
-            if (dX > 0) {
-                // Nếu vuốt sang phải, vẽ nền màu đỏ
-                itemView.setBackgroundColor(ContextCompat.getColor(SavedArticlesActivity.this, R.color.colorDelete));
+            if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE) {
+                if (dX > 0) {
+                    // If swiping right, draw red background
+                    itemView.setBackgroundColor(ContextCompat.getColor(SavedArticlesActivity.this, R.color.colorDelete));
+                } else {
+                    // Reset background when not swiping right
+                    itemView.setBackgroundColor(Color.TRANSPARENT);
+                }
             } else {
-                // Đặt lại màu nền khi không vuốt
+                // If not in swipe state, ensure background is transparent
                 itemView.setBackgroundColor(Color.TRANSPARENT);
             }
             
             super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);
+        }
+        
+        @Override
+        public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+            super.clearView(recyclerView, viewHolder);
+            
+            // Reset background color when swipe action is complete or canceled
+            viewHolder.itemView.setBackgroundColor(Color.TRANSPARENT);
         }
     }
     

@@ -6,8 +6,10 @@ public class RssNewsItem {
     private String pubDate;
     private String link;
     private String imageUrl;
+    private boolean isFromRss;
 
     public RssNewsItem() {
+        this.isFromRss = false;
     }
 
     public RssNewsItem(String title, String description, String pubDate, String link, String imageUrl) {
@@ -16,6 +18,7 @@ public class RssNewsItem {
         this.pubDate = pubDate;
         this.link = link;
         this.imageUrl = imageUrl;
+        this.isFromRss = false;
     }
 
     public String getTitle() {
@@ -56,6 +59,14 @@ public class RssNewsItem {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public boolean isFromRss() {
+        return isFromRss;
+    }
+
+    public void setIsFromRss(boolean isFromRss) {
+        this.isFromRss = isFromRss;
     }
 
     // Extract clean description (remove HTML tags)
