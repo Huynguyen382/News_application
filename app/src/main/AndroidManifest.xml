@@ -22,18 +22,13 @@
             android:value="@integer/google_play_services_version" />
         
         <activity
-            android:name=".View.HomeActivity"
+            android:name=".View.MainContainerActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
-        <activity
-            android:name=".View.MainActivity"
-            android:exported="false"
-            tools:ignore="Instantiatable" />
             
         <activity
             android:name=".View.NewsDetailActivity"
@@ -48,19 +43,7 @@
             android:exported="false" />
             
         <activity
-            android:name=".View.ProfileActivity"
-            android:exported="false" />
-            
-        <activity
-            android:name=".View.ExploreActivity"
-            android:exported="false" />
-            
-        <activity
             android:name=".View.SavedArticlesActivity"
-            android:exported="false" />
-            
-        <activity
-            android:name=".View.MainContainerActivity"
             android:exported="false" />
     </application>
 

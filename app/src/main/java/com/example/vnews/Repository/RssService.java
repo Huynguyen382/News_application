@@ -26,6 +26,27 @@ public class RssService {
         void onFetchDataFailure(Exception e);
     }
     
+    // Interface để xử lý callback khi tải RSS hoàn tất
+    public interface OnFetchCompleteListener {
+        void onFetchComplete(List<RssNewsItem> fetchedNews);
+        void onFetchFailed(Exception e);
+    }
+    
+    // Phương thức mới để tải dữ liệu RSS với OnFetchCompleteListener
+    public void fetchRssNews(String url, OnFetchCompleteListener listener) {
+        fetchNewsData(url, new OnFetchDataListener() {
+            @Override
+            public void onFetchDataSuccess(List<RssNewsItem> newsList) {
+                listener.onFetchComplete(newsList);
+            }
+
+            @Override
+            public void onFetchDataFailure(Exception e) {
+                listener.onFetchFailed(e);
+            }
+        });
+    }
+    
     public void fetchNewsData(String url, OnFetchDataListener listener) {
         new FetchRssDataTask(listener).execute(url);
     }

@@ -4,8 +4,10 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.view.MenuItem;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 
 import com.example.vnews.R;
 import com.example.vnews.Repository.FirebaseRepository;
@@ -58,43 +60,56 @@ public class BottomNavMenu {
                     return true;
                 }
                 
-                // Xử lý chuyển trang tùy thuộc vào item được chọn
+                // Sử dụng MainContainerActivity thay vì các Activity riêng lẻ
+                Intent intent = new Intent(context, MainContainerActivity.class);
+                
+                // Truyền vị trí tab cần chọn
                 if (itemId == R.id.navigation_home) {
-                    navigateTo(HomeActivity.class);
-                    return true;
+                    intent.putExtra("selected_tab", 0);
                 } else if (itemId == R.id.navigation_explore) {
-                    navigateTo(ExploreActivity.class);
-                    return true;
+                    intent.putExtra("selected_tab", 1);
                 } else if (itemId == R.id.navigation_profile) {
                     // Kiểm tra trạng thái đăng nhập
                     if (repository.isUserLoggedIn()) {
-                        // Nếu đã đăng nhập, chuyển đến ProfileActivity
-                        navigateTo(ProfileActivity.class);
+                        intent.putExtra("selected_tab", 2);
                     } else {
-                        // Nếu chưa đăng nhập, chuyển đến LoginActivity
-                        navigateTo(LoginActivity.class);
+                        // Nếu chưa đăng nhập, hiển thị dialog hỏi
+                        showLoginDialog();
+                        return true;
                     }
-                    return true;
                 }
                 
-                return false;
+                // Khởi động MainContainerActivity
+                context.startActivity(intent);
+                
+                // Kết thúc Activity hiện tại nếu nó là Activity
+                if (context instanceof Activity) {
+                    ((Activity) context).finish();
+                }
+                
+                return true;
             }
         });
     }
     
     /**
-     * Chuyển đến Activity mới
-     * 
-     * @param activityClass Lớp Activity cần chuyển đến
+     * Hiển thị hộp thoại đăng nhập
      */
-    private void navigateTo(Class<?> activityClass) {
-        Intent intent = new Intent(context, activityClass);
-        context.startActivity(intent);
-        
-        // Kết thúc Activity hiện tại nếu nó là Activity
-        if (context instanceof Activity) {
-            ((Activity) context).finish();
-        }
+    private void showLoginDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle("Đăng nhập")
+                .setMessage("Bạn cần đăng nhập để xem trang cá nhân")
+                .setPositiveButton("Đăng nhập", (dialog, which) -> {
+                    // Chuyển đến màn hình đăng nhập
+                    Intent intent = new Intent(context, LoginActivity.class);
+                    context.startActivity(intent);
+                })
+                .setNegativeButton("Hủy", (dialog, which) -> {
+                    // Quay về tab Home
+                    bottomNavigationView.setSelectedItemId(R.id.navigation_home);
+                })
+                .setCancelable(false)
+                .show();
     }
     
     /**

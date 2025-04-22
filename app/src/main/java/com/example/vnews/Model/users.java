@@ -6,6 +6,7 @@ public class users {
     private String email;
     private String password;
     private String avtUrl;
+    private String fullname;
 
     public users() {
     }
@@ -16,6 +17,15 @@ public class users {
         this.email = email;
         this.password = password;
         this.avtUrl = avtUrl;
+    }
+
+    public users(String id, String username, String email, String password, String avtUrl, String fullname) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.password = password;
+        this.avtUrl = avtUrl;
+        this.fullname = fullname;
     }
 
     public String getId() {
@@ -37,6 +47,14 @@ public class users {
     public String getAvtUrl() {
         return avtUrl;
     }
+    
+    public String getAvatar() {
+        return avtUrl;
+    }
+
+    public String getFullname() {
+        return fullname != null ? fullname : username;
+    }
 
     public void setId(String id) {
         this.id = id;
@@ -56,5 +74,9 @@ public class users {
 
     public void setAvtUrl(String avtUrl) {
         this.avtUrl = avtUrl;
+    }
+    
+    public void setFullname(String fullname) {
+        this.fullname = fullname;
     }
 }

@@ -141,9 +141,11 @@ public class LoginActivity extends AppCompatActivity {
         runOnUiThread(() -> {
             showLoadingDialog(false);
             
-            // Đăng nhập thành công, chuyển về trang chính
+            // Đăng nhập thành công, chuyển về trang chính (MainContainerActivity)
             Toast.makeText(LoginActivity.this, "Đăng nhập thành công", Toast.LENGTH_SHORT).show();
-            startActivity(new Intent(LoginActivity.this, HomeActivity.class));
+            Intent intent = new Intent(LoginActivity.this, MainContainerActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
             finish();
         });
     }

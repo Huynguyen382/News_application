@@ -1220,4 +1220,26 @@ public class FirebaseRepository {
         }
         return true;
     }
+
+    /**
+     * Sign out the current user
+     */
+    public void signOut() {
+        if (mAuth != null) {
+            mAuth.signOut();
+        }
+    }
+    
+    /**
+     * Get current user data
+     */
+    public void getCurrentUserData(FirestoreCallback<users> callback) {
+        if (mAuth == null || mAuth.getCurrentUser() == null) {
+            callback.onCallback(null);
+            return;
+        }
+        
+        String userId = mAuth.getCurrentUser().getUid();
+        getUserProfile(userId, callback);
+    }
 }

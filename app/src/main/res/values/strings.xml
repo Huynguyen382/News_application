@@ -26,6 +26,7 @@
 
     <!-- Home -->
     <string name="welcome_user">Xin chào, %1$s</string>
+    <string name="welcome_user_name">Xin chào, %1$s</string>
     <string name="search_hint">Tìm kiếm tin tức...</string>
     <string name="featured_news">Tin nổi bật</string>
     <string name="latest_news">Tin mới nhất</string>

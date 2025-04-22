@@ -80,6 +80,19 @@ public class EyeProtectionManager {
             contentView.addView(overlayView, params);
         }
     }
+    
+    /**
+     * Apply eye protection overlay to an activity
+     * @param activity The activity to apply the overlay to
+     * @param enabled Whether to enable eye protection
+     */
+    public static void applyEyeProtection(Activity activity, boolean enabled) {
+        if (enabled) {
+            applyEyeProtection(activity);
+        } else {
+            removeEyeProtection(activity);
+        }
+    }
 
     /**
      * Remove eye protection overlay
