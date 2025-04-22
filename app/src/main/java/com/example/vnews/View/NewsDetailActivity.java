@@ -1,6 +1,8 @@
 package com.example.vnews.View;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -31,7 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class NewsDetailActivity extends AppCompatActivity {
+public class NewsDetailActivity extends AppCompatActivity implements SharedPreferences.OnSharedPreferenceChangeListener {
     
     private static final String TAG = "NewsDetailActivity";
     private ActivityNewsDetailBinding binding;
@@ -40,6 +42,7 @@ public class NewsDetailActivity extends AppCompatActivity {
     private String articleUrl;
     private String articleTitle;
     private String articleImageUrl;
+    private SharedPreferences preferences;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,8 +52,17 @@ public class NewsDetailActivity extends AppCompatActivity {
         // Khởi tạo repository
         repository = new FirebaseRepository();
         
-        // Apply eye protection if it's enabled
-        EyeProtectionManager.applyEyeProtectionIfEnabled(this);
+        // Khởi tạo SharedPreferences và đăng ký listener
+        preferences = getSharedPreferences("VNNews", MODE_PRIVATE);
+        preferences.registerOnSharedPreferenceChangeListener(this);
+        
+        // Áp dụng chế độ bảo vệ mắt nếu được bật
+        boolean eyeProtectionEnabled = EyeProtectionManager.isEyeProtectionEnabled(this);
+        Log.d(TAG, "Eye protection enabled: " + eyeProtectionEnabled);
+        EyeProtectionManager.applyEyeProtection(this, eyeProtectionEnabled);
+        
+        // Cập nhật giao diện dựa trên chế độ bảo vệ mắt
+        updateUIForEyeProtection(eyeProtectionEnabled);
         
         // Thiết lập WebView
         setupWebView();
@@ -136,6 +148,104 @@ public class NewsDetailActivity extends AppCompatActivity {
                 binding.readMoreButton.setVisibility(View.GONE);
                 binding.saveArticleButton.setVisibility(View.GONE);
             }
+        }
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Kiểm tra và áp dụng lại chế độ bảo vệ mắt mỗi khi activity được khởi động lại
+        boolean eyeProtectionEnabled = EyeProtectionManager.isEyeProtectionEnabled(this);
+        Log.d(TAG, "onResume: Eye protection enabled: " + eyeProtectionEnabled);
+        EyeProtectionManager.applyEyeProtection(this, eyeProtectionEnabled);
+        
+        // Cập nhật giao diện dựa trên chế độ bảo vệ mắt
+        updateUIForEyeProtection(eyeProtectionEnabled);
+        
+        // Áp dụng chế độ bảo vệ mắt cho WebView nếu đang hiển thị nội dung
+        updateWebViewWithEyeProtection();
+    }
+    
+    @Override
+    protected void onDestroy() {
+        // Hủy đăng ký listener để tránh memory leak
+        if (preferences != null) {
+            preferences.unregisterOnSharedPreferenceChangeListener(this);
+        }
+        super.onDestroy();
+    }
+    
+    /**
+     * Cập nhật lại WebView với chế độ bảo vệ mắt nếu có thay đổi
+     */
+    private void updateWebViewWithEyeProtection() {
+        if (binding.webView.getVisibility() == View.VISIBLE) {
+            // Kiểm tra trạng thái chế độ bảo vệ mắt
+            boolean eyeProtectionEnabled = EyeProtectionManager.isEyeProtectionEnabled(this);
+            Log.d(TAG, "Updating WebView with eye protection: " + eyeProtectionEnabled);
+            
+            // Tải lại nội dung HTML với chế độ bảo vệ mắt (nếu được bật)
+            String currentContent = (String) binding.webView.getTag();
+            if (currentContent != null) {
+                loadHtmlContent(currentContent);
+            }
+        }
+    }
+    
+    @Override
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        // Nếu thay đổi cài đặt chế độ bảo vệ mắt, cập nhật lại UI
+        if (key != null && key.equals("eye_protection_enabled")) {
+            // Lấy giá trị mới của chế độ bảo vệ mắt
+            boolean eyeProtectionEnabled = EyeProtectionManager.isEyeProtectionEnabled(this);
+            Log.d(TAG, "Preference changed - Eye protection: " + eyeProtectionEnabled);
+            
+            // Áp dụng chế độ bảo vệ mắt cho overlay
+            EyeProtectionManager.applyEyeProtection(this, eyeProtectionEnabled);
+            
+            // Cập nhật giao diện dựa trên chế độ bảo vệ mắt
+            updateUIForEyeProtection(eyeProtectionEnabled);
+            
+            // Cập nhật WebView với chế độ bảo vệ mắt mới
+            updateWebViewWithEyeProtection();
+        }
+    }
+    
+    /**
+     * Cập nhật giao diện dựa trên chế độ bảo vệ mắt
+     * @param enabled trạng thái chế độ bảo vệ mắt
+     */
+    private void updateUIForEyeProtection(boolean enabled) {
+        if (enabled) {
+            // Màu sắc khi bật chế độ bảo vệ mắt
+            int bgColor = Color.parseColor("#FCF6E8");  // Màu nền nhẹ nhàng
+            int textColor = Color.parseColor("#624B3A"); // Màu chữ nâu nhẹ
+            
+            // Áp dụng màu cho các thành phần UI
+            binding.newsTitle.setTextColor(textColor);
+            binding.newsDate.setTextColor(Color.parseColor("#8A7054")); // Màu nâu nhạt cho ngày
+            
+            // Đặt màu nền cho layout
+            ((View) binding.newsTitle.getParent()).setBackgroundColor(bgColor);
+            
+            // Áp dụng màu nhẹ cho hình ảnh (nếu có)
+            if (binding.newsImage.getDrawable() != null) {
+                binding.newsImage.setColorFilter(Color.parseColor("#17FFB65C"), android.graphics.PorterDuff.Mode.MULTIPLY);
+            }
+        } else {
+            // Màu sắc mặc định
+            int defaultTextColor = getResources().getColor(R.color.black);
+            int dateColor = Color.GRAY;
+            
+            // Đặt lại màu mặc định
+            binding.newsTitle.setTextColor(defaultTextColor);
+            binding.newsDate.setTextColor(dateColor);
+            
+            // Đặt lại màu nền
+            ((View) binding.newsTitle.getParent()).setBackgroundColor(Color.WHITE);
+            
+            // Xóa bộ lọc màu khỏi ảnh
+            binding.newsImage.clearColorFilter();
         }
     }
     
@@ -230,27 +340,68 @@ public class NewsDetailActivity extends AppCompatActivity {
         webSettings.setSupportZoom(true);
         webSettings.setBuiltInZoomControls(true);
         webSettings.setDisplayZoomControls(false);
+        
+        // Tăng kích thước font chữ mặc định để dễ đọc hơn
+        webSettings.setDefaultFontSize(18);
+        webSettings.setMinimumFontSize(14);
+        
+        // Thiết lập text scaling dựa vào chế độ bảo vệ mắt từ SharedPreferences
+        boolean eyeProtectionEnabled = EyeProtectionManager.isEyeProtectionEnabled(this);
+        if (eyeProtectionEnabled) {
+            // Tăng khoảng cách dòng và điều chỉnh text size khi bật chế độ bảo vệ mắt
+            webSettings.setTextZoom(105); // Tăng kích thước text thêm 5%
+        } else {
+            webSettings.setTextZoom(100); // Kích thước mặc định
+        }
     }
     
     /**
      * Tải nội dung HTML vào WebView
      */
     private void loadHtmlContent(String htmlContent) {
+        // Lưu nội dung HTML gốc để có thể tải lại khi cần
+        binding.webView.setTag(htmlContent);
+        
+        // Kiểm tra xem chế độ bảo vệ mắt có được bật không từ SharedPreferences
+        boolean eyeProtectionEnabled = EyeProtectionManager.isEyeProtectionEnabled(this);
+        
+        // Chọn background color và text color dựa trên chế độ bảo vệ mắt
+        String backgroundColor = eyeProtectionEnabled ? "#FCF6E8" : "#FFFFFF";
+        String textColor = eyeProtectionEnabled ? "#624B3A" : "#333333";
+        String linkColor = eyeProtectionEnabled ? "#976526" : "#0066CC";
+        String captionColor = eyeProtectionEnabled ? "#8A7054" : "#666666";
+        
+        // Chuẩn bị CSS bổ sung cho chế độ bảo vệ mắt
+        String additionalEyeProtectionCss = eyeProtectionEnabled ? 
+            "p, li { line-height: 1.8; letter-spacing: 0.01em; }" +
+            "img { opacity: 0.95; filter: brightness(0.95); }" : 
+            "";
+        
         // Tạo HTML đầy đủ với CSS cho phần hiển thị
         String styledHtml = 
                 "<html><head>" +
                 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
                 "<style>" +
-                "body { font-family: 'Roboto', Arial, sans-serif; color: #333; line-height: 1.6; padding: 8px; }" +
-                "img { max-width: 100%; height: auto; display: block; margin: 12px auto; }" +
-                "figcaption { color: #666; font-size: 14px; font-style: italic; text-align: center; margin-bottom: 16px; }" +
+                "body { font-family: 'Roboto', Arial, sans-serif; color: " + textColor + "; line-height: 1.6; padding: 12px; background-color: " + backgroundColor + "; }" +
+                "img { max-width: 100%; height: auto; display: block; margin: 16px auto; border-radius: 4px; }" +
+                "figcaption { color: " + captionColor + "; font-size: 14px; font-style: italic; text-align: center; margin-bottom: 16px; }" +
                 "p { margin-bottom: 16px; }" +
-                "h2, h3 { margin-top: 20px; margin-bottom: 10px; }" +
+                "h2, h3 { margin-top: 24px; margin-bottom: 12px; }" +
+                "a { color: " + linkColor + "; text-decoration: none; }" +
+                additionalEyeProtectionCss +
                 "</style></head><body>" +
                 htmlContent +
                 "</body></html>";
         
-        binding.webView.loadDataWithBaseURL(null, styledHtml, "text/html", "utf-8", null);
+        binding.webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null);
+        
+        // Cập nhật text zoom trong WebSettings dựa vào chế độ bảo vệ mắt
+        WebSettings webSettings = binding.webView.getSettings();
+        if (eyeProtectionEnabled) {
+            webSettings.setTextZoom(105); // Tăng kích thước text thêm 5%
+        } else {
+            webSettings.setTextZoom(100); // Kích thước mặc định
+        }
     }
     
     /**
