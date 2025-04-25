@@ -110,11 +110,9 @@ public class HomeFragment extends Fragment {
                         .into(binding.profileImage);
                 }
             } else {
-                // Người dùng đã đăng nhập nhưng không có dữ liệu trong SharedPreferences
                 tryGetUserDataFromFirebase();
             }
         } else {
-            // Khi chưa đăng nhập, hiển thị "Xin chào, Khách" và đặt ảnh mặc định
             binding.welcomeText.setText(getString(R.string.welcome_user_name, "Khách"));
             Glide.with(this)
                 .load(R.drawable.default_avatar)
@@ -143,10 +141,8 @@ public class HomeFragment extends Fragment {
                     
                     binding.welcomeText.setText(getString(R.string.welcome_user_name, displayName));
                     
-                    // Lưu thông tin người dùng vào SharedPreferences
                     preferences.edit().putString("user_data", new com.google.gson.Gson().toJson(user)).apply();
                     
-                    // Tải ảnh đại diện nếu có
                     if (user.getAvatar() != null && !user.getAvatar().isEmpty()) {
                         Glide.with(HomeFragment.this)
                             .load(user.getAvatar())
@@ -196,23 +192,18 @@ public class HomeFragment extends Fragment {
             }
         });
         
-        // Thiết lập chức năng tìm kiếm
         binding.searchEditText.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
-                // Khi người dùng focus vào ô tìm kiếm, hiển thị gợi ý tìm kiếm
                 binding.searchEditText.setHint("Nhập từ khóa tìm kiếm...");
                 
-                // Hiển thị nút xóa khi focus vào ô tìm kiếm
                 if (!binding.searchEditText.getText().toString().isEmpty()) {
                     binding.searchLayout.setEndIconVisible(true);
                 }
                 
-                // Hiển thị bàn phím khi focus vào ô tìm kiếm
                 showKeyboard(binding.searchEditText);
             } else {
                 binding.searchEditText.setHint("Tìm kiếm tin tức");
                 
-                // Ẩn nút xóa nếu không có text
                 if (binding.searchEditText.getText().toString().isEmpty()) {
                     binding.searchLayout.setEndIconVisible(false);
                 }
